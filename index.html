@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101318">
+  <title>Courtside — Game Desk</title>
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="Courtside home"><span class="brand-ball" aria-hidden="true"></span>COURTSIDE<span class="brand-sub">GAME DESK</span></a>
+    <nav aria-label="Display views"><a href="/">Controller</a><a href="/?view=tournament">Tournament</a><a href="/?view=players">Player Stats</a><a href="/?view=shots">Shot tracker</a><a href="/?view=scoreboard" target="_blank" rel="noopener">Scoreboard ↗</a><a href="/?view=overlay" target="_blank" rel="noopener">Broadcast ↗</a><a href="/?view=referee">Referee</a></nav>
+  </header>
+  <main id="app"></main>
+  <div id="break" hidden><span class="eyebrow">OFFICIAL BREAK</span><h2 id="breakLabel"></h2><div id="breakTime"></div><button id="endBreak">End break</button><p>Play resumes on the official’s signal.</p></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

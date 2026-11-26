@@ -1,0 +1,2 @@
+# Codex instructions
+Keep the game engine independent of DOM and storage. Use milliseconds and timestamp-based countdowns. Preserve manual official control after breaks. Never allow a fouled-out player to return. Reset shot clock on possession change. Use textContent for user text. Add tests for each rule change. Do not claim NBA/FIBA compliance until rules are verified. Keep broadcast views read-only. Avoid destructive storage migrations; support export/import before migration. Read README for backlog. Run npm test and npm run build before reporting completion.
