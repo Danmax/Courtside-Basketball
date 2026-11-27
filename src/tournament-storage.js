@@ -14,6 +14,7 @@ export function writeTournament(storage, data, expectedRaw) {
   const json = JSON.stringify(validated);
   if (new TextEncoder().encode(json).length > MAX_TOURNAMENT_BYTES) throw new Error('Tournament exceeds the 4 MB backup limit. Export data and reduce the number of matches.');
   if (expectedRaw !== undefined && storage.getItem(TOURNAMENT_KEY) !== expectedRaw) throw new Error('The tournament changed while this action was open. Close and review it again.');
+  if (typeof storage.save === 'function') return storage.save(TOURNAMENT_KEY, json, expectedRaw);
   storage.setItem(TOURNAMENT_KEY, json);
 }
 export function exportTournament(data) {

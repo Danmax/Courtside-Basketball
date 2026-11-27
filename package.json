@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "server:dev": "node --env-file-if-exists=.env --watch server/index.js",
     "test": "node --test",
     "test:browser": "playwright test"
   },

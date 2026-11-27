@@ -15,6 +15,7 @@ export function writeGame(storage, state, expectedRaw) {
   exportGame(validated, validated.stamp);
   const json = JSON.stringify(validated);
   if (expectedRaw !== undefined && storage.getItem(KEY) !== expectedRaw) throw new Error('The game changed while this action was open. Review it and try again.');
+  if (typeof storage.save === 'function') return storage.save(KEY, json, expectedRaw).then(() => { state.gameId = gameId; });
   storage.setItem(KEY, json);
   state.gameId = gameId;
 }

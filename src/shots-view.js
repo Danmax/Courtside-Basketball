@@ -1,3 +1,4 @@
+import { appStorage, appNow } from './app-storage.js';
 import { node, confirmChange } from './ui.js';
 import { KEY, tick, stat, format, recordShot, voidShot } from './engine.js';
 import { readGame, writeGame } from './storage.js';
@@ -10,8 +11,9 @@ import { periodLabel } from './game-rules.js';
 import { createLiveToolbar } from './live-toolbar.js';
 
 export function mountShots(app) {
+  const storage = appStorage();
   document.body.className = 'shots'; document.title = 'Courtside — Shot tracker'; document.getElementById('break').hidden = true;
-  let currentError = '';
+  let currentError = '', saving = false;
   let game = null, tournament = null, source = 'current', team = 'A', playerId = '', value = 2, pending = null, cursor = { x: .5, y: .5 };
   const intro = node('div', '', app, 'page-intro'); const title = node('div', '', intro); node('span', 'LIVE CAPTURE', title, 'eyebrow'); node('h1', 'Shot tracker', title);
   const error = node('p', '', app, 'shot-error'); error.setAttribute('role', 'alert'); error.hidden = true;
@@ -64,10 +66,10 @@ export function mountShots(app) {
   for (const [key, label, noun] of [['reb', 'REB', 'rebound'], ['ast', 'AST', 'assist'], ['stl', 'STL', 'steal'], ['blk', 'BLK', 'block'], ['fls', 'PF', 'foul']]) {
     const button = node('button', '', statActions); button.type = 'button';
     const count = node('strong', '0', button); node('span', label + ' +', button);
-    button.onclick = () => {
+    button.onclick = async () => {
       const id = playerId, selectedTeam = team;
       try {
-        update(next => { if (!stat(next, selectedTeam, id, key)) throw new Error('Choose an eligible on-court player before adding a stat.'); });
+        await update(next => { if (!stat(next, selectedTeam, id, key)) throw new Error('Choose an eligible on-court player before adding a stat.'); });
         const player = game.teams[selectedTeam].players.find(p => p.id === id);
         showToast(`${label} added · #${player.number} ${player.name}${player.out ? ' · Fouled out; remove or replace before restarting.' : ''}`);
       } catch (e) { fail(e); }
@@ -118,32 +120,35 @@ export function mountShots(app) {
   }
   function read(refreshTournament = true) {
     let next = null;
-    try { next = readGame(localStorage); if (currentError) error.hidden = true; currentError = ''; } catch (e) { currentError = e.message; if (source === 'current') fail(e); }
+    try { next = readGame(storage); if (currentError) error.hidden = true; currentError = ''; } catch (e) { currentError = e.message; if (source === 'current') fail(e); }
     if (next?.gameId !== game?.gameId) { pending = null; playerId = ''; value = 2; cursor = { x: .5, y: .5 }; }
     game = next;
     if (refreshTournament) {
-      try { tournament = readTournament(localStorage); } catch (e) { tournament = null; if (source !== 'current') fail(e); }
+      try { tournament = readTournament(storage); } catch (e) { tournament = null; if (source !== 'current') fail(e); }
     }
     const options = [['current', 'Current game'], ...(tournament?.matches.filter(m => m.status === 'final' && m.result.game).map(m => ['match:' + m.id, `${m.result.game.teams.A.name} vs ${m.result.game.teams.B.name} · ${m.id}`]) || [])];
     if (!options.some(([id]) => id === source)) options.push([source, 'Saved match unavailable']); setOptions(sourceInput, options); sourceInput.value = source;
     render();
   }
-  function display() { const state = activeGame(); if (!state) return null; const copy = structuredClone(state); if (source === 'current') tick(copy, Date.now()); return copy; }
-  function update(fn) {
+  function display() { const state = activeGame(); if (!state) return null; const copy = structuredClone(state); if (source === 'current') tick(copy, appNow()); return copy; }
+  async function update(fn) {
     if (source !== 'current') throw new Error('Archived shot charts are read-only.');
-    const expectedRaw = localStorage.getItem(KEY);
-    const next = readGame(localStorage);
+    if (saving) throw new Error('A save is still in progress. Wait for it to finish.');
+    const expectedRaw = storage.getItem(KEY);
+    const next = readGame(storage);
     if (next.gameId !== game?.gameId) throw new Error('The game changed. Review the current game and choose the shot again.');
-    tick(next, Date.now()); fn(next); writeGame(localStorage, next, expectedRaw); game = next; error.hidden = true; render();
+    saving = true; render();
+    try { tick(next, appNow()); fn(next); await writeGame(storage, next, expectedRaw); game = next; error.hidden = true; }
+    finally { saving = false; render(); }
   }
-  function commit(madeShot) {
+  async function commit(madeShot) {
     try {
-      const spot = pending, chosenPlayer = playerId;
-      if (value !== 1 && !spot) throw new Error('Choose a location before recording the shot.');
-      update(next => {
-        if (!recordShot(next, team, chosenPlayer, value, madeShot, value === 1 ? null : spot.x, value === 1 ? null : spot.y, Date.now())) throw new Error('Shot not recorded. Choose an on-court eligible player, end any break, resolve clock violations, and stop both clocks for a free throw.');
+      const spot = pending, chosenPlayer = playerId, chosenTeam = team, shotValue = value;
+      if (shotValue !== 1 && !spot) throw new Error('Choose a location before recording the shot.');
+      await update(next => {
+        if (!recordShot(next, chosenTeam, chosenPlayer, shotValue, madeShot, shotValue === 1 ? null : spot.x, shotValue === 1 ? null : spot.y, appNow())) throw new Error('Shot not recorded. Choose an on-court eligible player, end any break, resolve clock violations, and stop both clocks for a free throw.');
       });
-      pending = null; showToast(`${madeShot ? 'Made' : 'Missed'} ${value === 1 ? 'free throw' : value + '-point attempt'} saved${madeShot ? ' · score updated' : ' · score unchanged'}.`);
+      if (pending === spot) pending = null; showToast(`${madeShot ? 'Made' : 'Missed'} ${shotValue === 1 ? 'free throw' : shotValue + '-point attempt'} saved${madeShot ? ' · score updated' : ' · score unchanged'}.`);
       render();
     } catch (e) { fail(e); }
   }
@@ -161,11 +166,12 @@ export function mountShots(app) {
   };
   function render() {
     const state = display(), archived = source !== 'current';
+    sourceInput.disabled = saving;
     toolbar.render(state, archived);
     clockControls.render(state, archived);
     capture.hidden = kindPicker.hidden = archived; archiveNote.hidden = !archived;
     fieldButton.setAttribute('aria-pressed', String(value !== 1)); freeButton.setAttribute('aria-pressed', String(value === 1));
-    court.disabled = archived || value === 1 || !state;
+    court.disabled = archived || value === 1 || !state || saving;
     summary.hidden = !state;
     if (!state) { picker.hidden = otherStats.hidden = true; mobileDock.hidden = true; document.body.classList.remove('shot-ready'); markers.replaceChildren(); history.replaceChildren(); markerSignature = historySignature = ''; summaryStats.replaceChildren(); made.disabled = missed.disabled = true; fail(new Error(source === 'current' ? currentError || 'Game data is unavailable. Use the game desk to recover it.' : 'This match no longer has a saved box score. Choose another source.')); return; }
     picker.hidden = otherStats.hidden = false;
@@ -210,7 +216,7 @@ export function mountShots(app) {
     statActions.hidden = archived; recordedStats.hidden = !archived;
     recordedStats.textContent = player ? `${player.reb} REB · ${player.ast} AST · ${player.stl} STL · ${player.blk} BLK · ${player.fls} PF` : 'No player selected.';
     for (const { button, count, key, noun } of statButtons) {
-      count.textContent = player?.[key] ?? '—'; button.disabled = !player?.on || player.out;
+      count.textContent = player?.[key] ?? '—'; button.disabled = saving || !player?.on || player.out;
       button.setAttribute('aria-label', player ? `Add ${noun} for #${player.number} ${player.name}` : `Add ${noun}`);
       button.classList.toggle('foul-warning', key === 'fls' && !!player && player.fls >= state.personalLimit - 1);
     }
@@ -221,7 +227,7 @@ export function mountShots(app) {
     summaryTitle.textContent = teamChart ? state.teams[team].name : player ? '#' + player.number + ' ' + player.name : 'No player selected'; summaryStats.replaceChildren();
     shootingValues(total).forEach((value, i) => { const item = node('div', '', summaryStats); node('strong', value, item); node('span', ['FGM / FGA', 'FG %', '3PM / 3PA', 'FTM / FTA'][i], item); });
     const eligible = !!player?.on && !player.out && !state.break && !state.violation;
-    const ready = eligible && (value === 1 ? !state.running && !state.shotRunning : !!pending);
+    const ready = !saving && eligible && (value === 1 ? !state.running && !state.shotRunning : !!pending);
     made.disabled = missed.disabled = !ready; clear.disabled = !pending;
     made.textContent = `Made · +${value} ${value === 1 ? 'point' : 'points'}`;
     mobileDock.hidden = archived || !ready; document.body.classList.toggle('shot-ready', !archived && ready);
@@ -257,7 +263,7 @@ export function mountShots(app) {
         const undo = node('button', 'Void attempt', row, 'text-danger'); undo.type = 'button'; undo.disabled = state.running || state.shotRunning;
         undo.onclick = async () => {
           if (!await confirmChange('Void this attempt? Its made points will be subtracted. Clocks, possession and player eligibility will stay unchanged.')) return;
-          try { update(next => { if (next.gameId !== shotGameId) throw new Error('The game changed. Review the current attempt log before voiding.'); if (!voidShot(next, shot.id)) throw new Error('Cannot void. Stop both clocks and reconcile any score corrections first.'); }); pending = null; render(); showToast('Attempt voided. Review possession and clocks before restarting.'); } catch (e) { fail(e); }
+          try { await update(next => { if (next.gameId !== shotGameId) throw new Error('The game changed. Review the current attempt log before voiding.'); if (!voidShot(next, shot.id)) throw new Error('Cannot void. Stop both clocks and reconcile any score corrections first.'); }); pending = null; render(); showToast('Attempt voided. Review possession and clocks before restarting.'); } catch (e) { fail(e); }
         };
       }
     }

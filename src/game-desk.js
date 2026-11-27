@@ -1,3 +1,4 @@
+import { appStorage, appNow } from './app-storage.js';
 import './style.css';
 import {
   KEY, initial, format, parseClock, note, stop, tick, possession, start, beginBreak,
@@ -14,13 +15,14 @@ import { renderTeams } from './teams-view.js';
 import { boxScore, renderReports, csvReport } from './reports.js';
 import { createLiveToolbar, clockActionLabel } from './live-toolbar.js';
 
+const storage = appStorage();
 const $ = id => document.getElementById(id);
 const view = new URLSearchParams(location.search).get('view') || 'control';
 const readonly = ['scoreboard', 'overlay'].includes(view);
 document.body.className = view;
 let storageError = '', storageReadFailure = false, lastActionError = '';
 const load = () => {
-  try { return readGame(localStorage); }
+  try { return readGame(storage); }
   catch (error) { storageReadFailure = true; throw error; }
 };
 let s;
@@ -33,10 +35,10 @@ async function act(fn, expectedGameId = s.gameId) {
   if (readonly) return false;
   lastActionError = '';
   try {
-    const expectedRaw = localStorage.getItem(KEY);
+    const expectedRaw = storage.getItem(KEY);
     const next = load();
     if (next.gameId !== expectedGameId) { s = next; render(true); throw new Error('The game changed. Review the current game before trying again.'); }
-    tick(next, Date.now());
+    tick(next, appNow());
     const result = await fn(next);
     if (result === false) {
       lastActionError = 'Change unavailable. Stop both clocks and check player eligibility or entered values.';
@@ -44,7 +46,7 @@ async function act(fn, expectedGameId = s.gameId) {
       render(true);
       return false;
     }
-    writeGame(localStorage, next, expectedRaw);
+    await writeGame(storage, next, expectedRaw);
     s = next;
     storageError = ''; storageReadFailure = false;
     setFeedback('');
@@ -224,9 +226,9 @@ function exportBackup() {
   if (readonly) return;
   try {
     let json, recovery = false;
-    try { json = exportGame(load()); }
+    try { json = exportGame(load(), appNow()); }
     catch {
-      json = localStorage.getItem(KEY);
+      json = storage.getItem(KEY);
       if (json === null) throw new Error('No stored game is available.');
       recovery = true;
     }
@@ -248,7 +250,7 @@ function importDialog(triggerId) {
       if (!selected) return;
       try {
         if (selected.size > MAX_BACKUP_BYTES) throw new Error('Choose a JSON backup smaller than 2 MB.');
-        const json = await selected.text(), imported = importGame(json);
+        const json = await selected.text(), imported = importGame(json, appNow());
         if (file.files[0] !== selected) return;
         pending = json;
         preview.textContent = `${imported.teams.A.name} ${imported.teams.A.score} – ${imported.teams.B.score} ${imported.teams.B.name}. Q${imported.quarter}, ${format(imported.game, true)}. Rosters: ${imported.teams.A.players.length} / ${imported.teams.B.players.length}. Both clocks will be stopped.`;
@@ -258,16 +260,16 @@ function importDialog(triggerId) {
       if (!pending) return false;
       try {
         // A corrupt saved game can also be explicitly replaced through this confirmation.
-        const expectedRaw = localStorage.getItem(KEY);
+        const expectedRaw = storage.getItem(KEY);
         let current;
         try { current = load(); } catch { current = null; }
         if (current && (current.running || current.shotRunning)) {
           preview.textContent = 'Stop both clocks before importing.';
           return false;
         }
-        const imported = importGame(pending);
+        const imported = importGame(pending, appNow());
         if (!await confirmChange('Replace the current game with the backup shown above? Current scores, roster and play-by-play will be replaced.')) return false;
-        writeGame(localStorage, imported, expectedRaw);
+        await writeGame(storage, imported, expectedRaw);
         s = imported; storageError = ''; storageReadFailure = false; setFeedback('Game imported. Both clocks are stopped.', true);
         render(true);
         return true;
@@ -303,7 +305,7 @@ function renderControls() {
   node('h2', 'Game management', match);
   button(match, 'Possession', x => possession(x, x.possession === 'A' ? 'B' : 'A'));
   button(match, 'Next period', nextPeriod, s.quarter >= s.periods || !!s.break);
-  button(match, 'Halftime', x => beginBreak(x, 'HALFTIME', x.halftime * 60, Date.now()), s.halftime === 0 || !!s.break);
+  button(match, 'Halftime', x => beginBreak(x, 'HALFTIME', x.halftime * 60, appNow()), s.halftime === 0 || !!s.break);
   dialogButton(rulesActions, 'Game rules…', 'editRules', rulesEditor, moving || !!s.break).className = 'rules-button';
   const settings = node('details', '', match, 'game-settings'); node('summary', 'Game settings & reset', settings);
   const halftime = field(settings, 'Halftime minutes', s.halftime, (x, v) => {
@@ -350,7 +352,7 @@ function renderWorkspace(display) {
       metric: leaderMetric,
       setMetric: value => { leaderMetric = value; render(true); },
       csv: () => {
-        try { const current = load(); tick(current, Date.now()); download(csvReport(current), 'basketball-box-score.csv', 'text/csv;charset=utf-8'); }
+        try { const current = load(); tick(current, appNow()); download(csvReport(current), 'basketball-box-score.csv', 'text/csv;charset=utf-8'); }
         catch (error) { reportStorageError(error); }
       },
     });
@@ -369,7 +371,7 @@ function renderWorkspace(display) {
 }
 function render(full = false) {
   const display = structuredClone(s);
-  tick(display, Date.now());
+  tick(display, appNow());
   liveToolbar?.render(display);
   for (const k of ['A', 'B']) {
     const t = display.teams[k];
@@ -393,7 +395,7 @@ function render(full = false) {
   if (display.break) {
     $('breakLabel').textContent = display.break.label;
     $('controlBreakLabel').textContent = display.break.label + ' · Clocks paused. Restart manually after the break.';
-    $('breakTime').textContent = format(display.break.end - Date.now());
+    $('breakTime').textContent = format(display.break.end - appNow());
   }
   $('endBreak').hidden = readonly;
   for (const summary of controls.querySelectorAll('.game-rules-summary')) summary.textContent = gameRulesSummary(display);
@@ -414,7 +416,7 @@ function render(full = false) {
   matchContext.replaceChildren();
   if (s.matchLink) {
     let label = 'Tournament match · ' + s.matchLink.matchId;
-    try { const tournament = readTournament(localStorage); const match = tournament.matches.find(m => m.id === s.matchLink.matchId && tournament.id === s.matchLink.tournamentId); if (match) label += match.status === 'final' ? ' · Result recorded. Record again if scores change.' : ' · Result not yet recorded.'; } catch {}
+    try { const tournament = readTournament(storage); const match = tournament.matches.find(m => m.id === s.matchLink.matchId && tournament.id === s.matchLink.tournamentId); if (match) label += match.status === 'final' ? ' · Result recorded. Record again if scores change.' : ' · Result not yet recorded.'; } catch {}
     node('span', label, matchContext);
     const link = node('a', 'Record result / manage matches →', matchContext); link.href = '/?view=tournament#matches';
   }
@@ -453,17 +455,18 @@ window.addEventListener('storage', e => {
     catch (error) { reportStorageError(error); }
   }
 });
-setInterval(() => {
-  if (!readonly && !confirmingChange()) {
+let clockSavePending = false;
+setInterval(async () => {
+  if (!readonly && !confirmingChange() && !clockSavePending) {
     try {
-      const expectedRaw = localStorage.getItem(KEY);
+      const expectedRaw = storage.getItem(KEY);
       const next = load();
       if (next.running || next.shotRunning || next.break) {
-        tick(next, Date.now());
+        tick(next, appNow());
         // Timestamps drive the display. Save only the transition at expiration;
         // normal countdown frames never rewrite another official's actions.
         const ended = !next.running && !next.shotRunning && !next.break;
-        if (ended) writeGame(localStorage, next, expectedRaw);
+        if (ended) { clockSavePending = true; try { await writeGame(storage, next, expectedRaw); } finally { clockSavePending = false; } }
         s = next;
         if (ended) render(true);
       } else { s = next; }

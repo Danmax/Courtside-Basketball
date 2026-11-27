@@ -1,3 +1,4 @@
+import { appStorage, appNow } from './app-storage.js';
 import { node, initials, confirmChange } from './ui.js';
 import { boxScore } from './reports.js';
 import { tick, KEY } from './engine.js';
@@ -6,6 +7,7 @@ import { initialTournament, saveTeam, deleteTeam, savePlayer, deletePlayer, save
 import { TOURNAMENT_KEY, MAX_TOURNAMENT_BYTES, readTournament, writeTournament, exportTournament, importTournament } from './tournament-storage.js';
 
 export function mountTournament(app) {
+  const storage = appStorage();
   document.body.className = 'tournament';
   document.getElementById('break').hidden = true;
   let data = initialTournament(), section = ['teams', 'matches', 'standings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'teams', filter = 'all';
@@ -13,16 +15,16 @@ export function mountTournament(app) {
   const notice = node('p', '', app, 'tournament-notice'); notice.setAttribute('role', 'status');
   const shell = node('div', '', app), dialog = node('dialog', '', app);
   const notify = message => { notice.textContent = message; };
-  try { data = readTournament(localStorage); } catch (error) { notify(error.message); }
-  function update(fn) {
-    const expectedRaw = localStorage.getItem(TOURNAMENT_KEY);
-    const next = readTournament(localStorage); fn(next); writeTournament(localStorage, next, expectedRaw); data = next; render();
+  try { data = readTournament(storage); } catch (error) { notify(error.message); }
+  async function update(fn) {
+    const expectedRaw = storage.getItem(TOURNAMENT_KEY);
+    const next = readTournament(storage); fn(next); await writeTournament(storage, next, expectedRaw); data = next; render();
   }
   async function run(fn) { try { await fn(); notify(''); } catch (error) { notify(error.message); } }
   async function confirmed(message, fn) {
-    const expectedRaw = localStorage.getItem(TOURNAMENT_KEY);
+    const expectedRaw = storage.getItem(TOURNAMENT_KEY);
     if (!await confirmChange(message)) return;
-    if (localStorage.getItem(TOURNAMENT_KEY) !== expectedRaw) throw new Error('The tournament changed. Review the latest data before trying again.');
+    if (storage.getItem(TOURNAMENT_KEY) !== expectedRaw) throw new Error('The tournament changed. Review the latest data before trying again.');
     return fn();
   }
   function action(parent, label, fn, className = '') {
@@ -38,7 +40,7 @@ export function mountTournament(app) {
   }
   function form(title, build, submitLabel = 'Save') {
     const trigger = document.activeElement;
-    const expectedRaw = localStorage.getItem(TOURNAMENT_KEY);
+    const expectedRaw = storage.getItem(TOURNAMENT_KEY);
     dialog.replaceChildren(); const h = node('h2', title, dialog); h.id = 'tournament-dialog-title'; dialog.setAttribute('aria-labelledby', h.id);
     const body = node('form', '', dialog), error = node('p', '', body); error.setAttribute('role', 'alert');
     const submit = build(body);
@@ -49,7 +51,7 @@ export function mountTournament(app) {
       if (save.disabled) return;
       save.disabled = true;
       try {
-        if (localStorage.getItem(TOURNAMENT_KEY) !== expectedRaw) throw new Error('The tournament changed. Close this dialog and review the latest data.');
+        if (storage.getItem(TOURNAMENT_KEY) !== expectedRaw) throw new Error('The tournament changed. Close this dialog and review the latest data.');
         await submit(); dialog.close(); notify('');
       } catch (e) { error.textContent = e.message; }
       finally { save.disabled = false; }
@@ -63,11 +65,11 @@ export function mountTournament(app) {
   }
   function backup() {
     let json, name = 'courtside-tournament.json';
-    try { json = exportTournament(readTournament(localStorage)); }
-    catch { json = localStorage.getItem(TOURNAMENT_KEY); if (json === null) throw new Error('No stored tournament is available.'); name = 'courtside-tournament-recovery.json'; }
+    try { json = exportTournament(readTournament(storage)); }
+    catch { json = storage.getItem(TOURNAMENT_KEY); if (json === null) throw new Error('No stored tournament is available.'); name = 'courtside-tournament-recovery.json'; }
     download(json, name);
   }
-  function game() { const current = readGame(localStorage); tick(current, Date.now()); return current; }
+  function game() { const current = readGame(storage); tick(current, appNow()); return current; }
   function linked(current, match) { return current.matchLink?.tournamentId === data.id && current.matchLink?.matchId === match.id; }
   function guardActive(id) {
     const current = game();
@@ -96,9 +98,9 @@ export function mountTournament(app) {
       if (match?.scheduledAt) { const d = new Date(match.scheduledAt); localDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
       const time = field(body, 'Start time (your local time, optional)', localDate, 'datetime-local');
       const court = field(body, 'Court / venue (optional)', match?.court || ''); court.maxLength = 80;
-      return () => {
+      return async () => {
         if (match) guardActive(match.id);
-        update(t => saveMatch(t, match?.id, { homeId: home.value, awayId: away.value, scheduledAt: time.value ? new Date(time.value).toISOString() : '', court: court.value }));
+        await update(t => saveMatch(t, match?.id, { homeId: home.value, awayId: away.value, scheduledAt: time.value ? new Date(time.value).toISOString() : '', court: court.value }));
       };
     }, 'Save match');
   }
@@ -114,7 +116,7 @@ export function mountTournament(app) {
         const latest = matchById(t, match.id), current = game();
         if (latest.homeId !== match.homeId || latest.awayId !== match.awayId) throw new Error('Match teams changed. Close and review the match again.');
         if (!useDesk && current.matchLink?.tournamentId === t.id && current.matchLink.matchId === match.id) throw new Error('This match is now on the game desk. Close and use Record game desk result.');
-        recordResult(t, match.id, Number(home.value), Number(away.value), Date.now(), useDesk ? current : null);
+        recordResult(t, match.id, Number(home.value), Number(away.value), appNow(), useDesk ? current : null);
       });
     }, match.status === 'final' ? 'Update final result' : 'Record final result');
   }
@@ -125,12 +127,12 @@ export function mountTournament(app) {
       for (const id of [match.homeId, match.awayId]) { const team = teamById(data, id); node('p', `${team.name}: ${team.players.length} registered players. First five start on court.`, body); }
       node('p', 'Loading starts a new game with these rosters and your current clock/rule settings. Current scores and statistics will be replaced. Export the current game first if you need it.', body);
       const link = node('a', 'Open game desk to export current game ↗', body); link.href = '/'; link.target = '_blank'; link.rel = 'noopener';
-      return () => {
-        const expectedGame = localStorage.getItem(KEY);
-        const latest = readTournament(localStorage), latestMatch = matchById(latest, match.id);
+      return async () => {
+        const expectedGame = storage.getItem(KEY);
+        const latest = readTournament(storage), latestMatch = matchById(latest, match.id);
         if (latestMatch.homeId !== match.homeId || latestMatch.awayId !== match.awayId || JSON.stringify(previewTeams) !== JSON.stringify([latestMatch.homeId, latestMatch.awayId].map(id => teamById(latest, id)))) throw new Error('Teams or rosters changed. Close and review this match again.');
         const next = prepareMatchGame(latest, match.id, game());
-        writeGame(localStorage, next, expectedGame); location.href = '/';
+        await writeGame(storage, next, expectedGame); location.href = '/';
       };
     }, 'Load new game');
   }
@@ -151,12 +153,12 @@ export function mountTournament(app) {
       };
       return async () => {
         if (!json) throw new Error('Choose a valid tournament backup.');
-        const expectedRaw = localStorage.getItem(TOURNAMENT_KEY), expectedGame = localStorage.getItem(KEY);
+        const expectedRaw = storage.getItem(TOURNAMENT_KEY), expectedGame = storage.getItem(KEY);
         if (game().matchLink) throw new Error('Reset or finish and reset the linked game before importing a tournament.');
         const next = importTournament(json);
         if (!await confirmChange('Replace the current tournament with the backup shown above?')) throw new Error('Import cancelled. Current tournament was preserved.');
-        if (localStorage.getItem(KEY) !== expectedGame) throw new Error('The game desk changed. Close and review the linked game before importing.');
-        writeTournament(localStorage, next, expectedRaw); data = next; render();
+        if (storage.getItem(KEY) !== expectedGame) throw new Error('The game desk changed. Close and review the linked game before importing.');
+        await writeTournament(storage, next, expectedRaw); data = next; render();
       };
     }, 'Replace tournament');
   }
@@ -165,7 +167,7 @@ export function mountTournament(app) {
     action(tools, 'Add team', () => editTeam(), 'primary');
     action(tools, 'Copy game desk teams', () => confirmed('Copy both game desk teams and player names/numbers into the directory? Existing directory teams will be kept. Live game statistics will not change.', () => {
       const current = game();
-      update(t => {
+      return update(t => {
         for (const team of Object.values(current.teams)) {
           saveTeam(t, null, team.name); const added = t.teams.at(-1);
           for (const p of team.players) savePlayer(t, added.id, null, p.name, p.number);
@@ -269,7 +271,7 @@ export function mountTournament(app) {
   });
   window.addEventListener('storage', event => {
     if (event.key === TOURNAMENT_KEY || event.key === KEY || event.key === null) {
-      try { data = readTournament(localStorage); if (!dialog.open) render(); } catch (error) { notify(error.message); }
+      try { data = readTournament(storage); if (!dialog.open) render(); } catch (error) { notify(error.message); }
     }
   });
   render();

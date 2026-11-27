@@ -1,4 +1,5 @@
 export function serverConfig(env = process.env) {
+  env = { DB_NAME: 'u130206374_courtside', DB_USER: 'u130206374_courtsideAdmin', APP_ORIGIN: 'https://courtside.frowear.com', NODE_ENV: 'production', ...env };
   for (const key of ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'COURTSIDE_ADMIN_PASSWORD', 'APP_ORIGIN']) if (!env[key]) throw new Error(`Missing server environment setting: ${key}`);
   if (env.COURTSIDE_ADMIN_PASSWORD.length < 16) throw new Error('COURTSIDE_ADMIN_PASSWORD must contain at least 16 characters.');
   const origin = new URL(env.APP_ORIGIN).origin, production = env.NODE_ENV === 'production';

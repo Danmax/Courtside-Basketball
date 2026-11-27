@@ -139,3 +139,13 @@
 @media print{.live-toolbar,.skip-link,.action-notice{display:none!important}}
 .scoreboard .skip-link,.overlay .skip-link,.player-presentation .skip-link{display:none}
 @media(prefers-reduced-motion:reduce){.skip-link,.action-notice{transition:none}}
+
+.database-setup{max-width:640px;margin:40px auto;padding:28px;border:1px solid var(--border);border-radius:12px;background:var(--panel)}
+.database-setup h1{margin:10px 0 16px}.database-setup>p{font-size:15px;line-height:1.7;color:var(--muted);margin:12px 0}
+.database-setup form{display:grid;gap:16px;margin:20px 0}.database-setup label{display:grid;gap:8px;font-size:14px}
+.database-setup input{font-size:16px;padding:12px}.database-setup button{min-height:44px}.database-setup>a{display:inline-block;margin-top:16px}
+.database-choice-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}.database-status{max-width:1680px;margin:auto;padding:10px 36px 0;display:flex;align-items:center;gap:14px;font-size:12px;color:var(--green)}
+.database-status button,.database-status a{font-size:12px;min-height:32px;padding:5px 9px}.database-status[data-phase=offline]{color:#ffb1bb}.database-status[data-phase=local]{color:#ffd0a8}.database-status[data-phase=saving]{color:#c1d4ec}
+.scoreboard .database-status,.overlay .database-status,.player-presentation .database-status{display:none}
+@media(max-width:760px){.database-status{padding:10px 16px 0;flex-wrap:wrap}.database-setup{padding:20px;margin:16px 0}}
+@media print{.database-status{display:none!important}}

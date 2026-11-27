@@ -1,3 +1,4 @@
+import { appNow } from './app-storage.js';
 import { node, identity, confirmChange } from './ui.js';
 import { stat, beginBreak, removeFromCourt, putOnCourt, deletePlayer, renameTeam, addTeamScore } from './engine.js';
 
@@ -29,7 +30,7 @@ export function renderTeams(parent, state, ui) {
     const tools = node('div', '', panel, 'team-tools');
     ui.dialogButton(tools, 'Add player…', k + '-add', id => ui.rosterEditor(k, null, id), moving);
     const timeout = node('details', '', tools, 'popover'); node('summary', `Timeout · ${t.timeouts} left`, timeout);
-    for (const n of new Set([state.timeoutShort ?? 30, state.timeoutLong ?? 60])) ui.button(timeout, 'Timeout ' + n, x => beginBreak(x, x.teams[k].name + ' TIMEOUT', n, Date.now(), k), t.timeouts <= 0 || !!state.break);
+    for (const n of new Set([state.timeoutShort ?? 30, state.timeoutLong ?? 60])) ui.button(timeout, 'Timeout ' + n, x => beginBreak(x, x.teams[k].name + ' TIMEOUT', n, appNow(), k), t.timeouts <= 0 || !!state.break);
     const corrections = node('details', '', tools, 'popover'); node('summary', 'Team score', corrections);
     node('p', 'Unassigned score / correction', corrections, 'muted');
     for (const n of [1, 2, 3, -1]) ui.button(corrections, 'Score ' + n, x => addTeamScore(x, k, n));

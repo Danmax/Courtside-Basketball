@@ -1,3 +1,4 @@
+import { appStorage, appNow } from './app-storage.js';
 import { node, minutes, heading } from './ui.js';
 import { KEY, tick, format } from './engine.js';
 import { readGame } from './storage.js';
@@ -8,6 +9,7 @@ import { emptyShooting, shootingValues } from './shooting.js';
 import { periodLabel } from './game-rules.js';
 
 export function mountPlayerStats(app) {
+  const storage = appStorage();
   const params = new URLSearchParams(location.search), presentation = params.get('display') === '1';
   document.body.className = presentation ? 'players player-presentation' : 'players';
   document.title = 'Courtside — Player Stats';
@@ -46,8 +48,8 @@ export function mountPlayerStats(app) {
   }
   function read() {
     gameError = tournamentError = '';
-    try { current = readGame(localStorage); } catch (error) { current = null; gameError = error.message; }
-    try { tournament = readTournament(localStorage); } catch (error) { tournament = null; tournamentError = error.message; }
+    try { current = readGame(storage); } catch (error) { current = null; gameError = error.message; }
+    try { tournament = readTournament(storage); } catch (error) { tournament = null; tournamentError = error.message; }
     const choices = [['current', 'Current game'], ['tournament', 'Tournament · recorded totals'], ...(tournament?.matches.filter(m => m.status === 'final' && m.result.game).map(m => ['match:' + m.id, `${m.result.game.teams.A.name} vs ${m.result.game.teams.B.name} · ${m.id}`]) || [])];
     if (!choices.some(([key]) => key === source)) choices.push([source, 'Saved match unavailable']);
     options(sourceInput, choices);
@@ -57,7 +59,7 @@ export function mountPlayerStats(app) {
   function dataset() {
     if (source === 'current') {
       if (!current) return { error: gameError };
-      const game = structuredClone(current); tick(game, Date.now());
+      const game = structuredClone(current); tick(game, appNow());
       return { game, rows: gamePlayers(game), label: 'Current game · ' + game.teams.A.name + ' vs ' + game.teams.B.name, facts: gameFacts(game), final: false };
     }
     if (!tournament) return { error: tournamentError };

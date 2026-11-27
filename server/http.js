@@ -39,7 +39,11 @@ export function createAppServer({ database, config, directory = resolve('dist'),
         }
         if (url.pathname === '/api/session' && req.method === 'DELETE') return response(res, 200, { authenticated: false }, { 'Set-Cookie': auth.clear() });
         if (!session) throw new ApiError(401, 'Sign in to access the shared database.');
-        if (url.pathname === '/api/state' && req.method === 'GET') return response(res, 200, { state: await database.read() });
+        if (url.pathname === '/api/state' && req.method === 'GET') {
+          const since = url.searchParams.has('since') ? Number(url.searchParams.get('since')) : null;
+          if (since !== null && (!Number.isSafeInteger(since) || since < 0)) throw new ApiError(400, 'Invalid database revision.');
+          const state = await database.read(since); return response(res, 200, state ? { state } : { unchanged: true });
+        }
         if (url.pathname === '/api/state' && req.method === 'PUT') {
           if (session.role !== 'operator') throw new ApiError(403, 'Display access is read-only. Sign in as an operator to save changes.');
           const input = await body(req, 8 * 1024 * 1024); let state;

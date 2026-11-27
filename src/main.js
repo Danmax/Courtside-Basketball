@@ -1,13 +1,18 @@
 import './style.css';
 import './ux.css';
 import { setupAppShell } from './app-shell.js';
+import { initializeAppStorage, showStorageStartupError } from './app-storage.js';
 setupAppShell();
+async function mount() {
+await initializeAppStorage();
 if (new URLSearchParams(location.search).get('view') === 'tournament') {
-  import('./tournament-view.js').then(({ mountTournament }) => mountTournament(document.getElementById('app')));
+  const { mountTournament } = await import('./tournament-view.js'); mountTournament(document.getElementById('app'));
 } else if (new URLSearchParams(location.search).get('view') === 'players') {
-  import('./player-stats-view.js').then(({ mountPlayerStats }) => mountPlayerStats(document.getElementById('app')));
+  const { mountPlayerStats } = await import('./player-stats-view.js'); mountPlayerStats(document.getElementById('app'));
 } else if (new URLSearchParams(location.search).get('view') === 'shots') {
-  import('./shots-view.js').then(({ mountShots }) => mountShots(document.getElementById('app')));
+  const { mountShots } = await import('./shots-view.js'); mountShots(document.getElementById('app'));
 } else {
-  import('./game-desk.js');
+  await import('./game-desk.js');
 }
+}
+mount().catch(showStorageStartupError);

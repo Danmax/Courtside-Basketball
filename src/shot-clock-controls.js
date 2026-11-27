@@ -11,9 +11,9 @@ export function createShotClockControls(parent, { apply, toast, fail, primaryHos
   const primary = primaryHost || gameActions;
   function action(parent, label, fn, confirmation, className = '') {
     const button = node('button', label, parent, className); button.type = 'button';
-    button.onclick = () => {
+    button.onclick = async () => {
       try {
-        apply(next => { if (fn(next) === false) throw new Error('Control unavailable. Check the break, game time and on-court foul-outs.'); });
+        await apply(next => { if (fn(next) === false) throw new Error('Control unavailable. Check the break, game time and on-court foul-outs.'); });
         toast(typeof confirmation === 'function' ? confirmation() : confirmation);
       } catch (error) { fail(error); }
     };
@@ -50,12 +50,12 @@ export function createShotClockControls(parent, { apply, toast, fail, primaryHos
     const actions = node('div', '', form, 'dialog-actions');
     const cancel = node('button', 'Cancel', actions); cancel.type = 'button'; cancel.onclick = () => dialog.close();
     node('button', 'Apply', actions).type = 'submit';
-    form.onsubmit = event => {
+    form.onsubmit = async event => {
       event.preventDefault();
       try {
         const parsed = parseClock(input.value);
         if (parsed === null) throw new Error('Use minutes:seconds with up to three decimal digits, such as 02:15.500.');
-        apply(next => {
+        await apply(next => {
           if (next.gameId !== gameId) throw new Error('The game changed. Close this dialog and review the current clock.');
           if (!setClock(next, clock, parsed)) throw new Error('Stop both clocks and end any break before applying a time correction.');
         });

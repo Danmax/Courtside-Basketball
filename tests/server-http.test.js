@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { createAppServer } from '../server/http.js';
+import { changeState } from '../server/state.js';
+import { initial, KEY } from '../src/engine.js';
+
+test('HTTP API requires sessions, rejects foreign origins, and keeps viewer access read-only', async t => {
+  let current = { revision: 0, game: null, tournament: null }, broken = false; const logs = [];
+  const database = { async health() { if (broken) throw Object.assign(new Error('private database detail'), { code: 'ECONNREFUSED' }); }, async read(since) { return since === current.revision ? null : current; }, async write(input) { current = changeState(current, input); return { ...current, lastMutationId: input.mutationId }; } };
+  const config = { origin: 'http://localhost', production: false, adminPassword: 'operator-test-password-123' };
+  const server = createAppServer({ database, config, log: code => logs.push(code) }); server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const call = (path, options = {}) => fetch(base + path, options);
+  assert.equal((await call('/api/health')).status, 200);
+  assert.equal((await call('/api/state')).status, 401);
+  assert.equal((await call('/api/config')).status, 200);
+  const login = (password, role = 'operator', origin = config.origin) => call('/api/session', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ password, role }) });
+  assert.equal((await login(config.adminPassword, 'operator', 'http://foreign.example')).status, 403);
+  assert.equal((await login('wrong-password')).status, 401);
+  const viewer = await login(config.adminPassword, 'viewer'), viewerCookie = viewer.headers.get('set-cookie').split(';')[0]; assert.match(viewer.headers.get('set-cookie'), /HttpOnly/);
+  assert.equal((await call('/api/state', { headers: { Cookie: viewerCookie } })).status, 200);
+  const game = initial(); game.gameId = 'http-test-game';
+  const payload = { key: KEY, value: game, revision: 0, mutationId: crypto.randomUUID() };
+  const write = cookie => call('/api/state', { method: 'PUT', headers: { Origin: config.origin, 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(payload) });
+  assert.equal((await write(viewerCookie)).status, 403); assert.equal(current.game, null);
+  const operator = await login(config.adminPassword), cookie = operator.headers.get('set-cookie').split(';')[0];
+  assert.equal((await write(cookie)).status, 200); assert.equal(current.game.gameId, game.gameId);
+  assert.equal((await write(cookie)).status, 409);
+  const unchanged = await call('/api/state?since=1', { headers: { Cookie: cookie } }); assert.equal((await unchanged.json()).unchanged, true);
+  assert.equal((await call('/api/state?since=-1', { headers: { Cookie: cookie } })).status, 400);
+  assert.equal((await call('/.env')).status, 404); assert.equal((await call('/server/config.js')).status, 404);
+  broken = true; const failed = await call('/api/health'); assert.equal(failed.status, 503); assert.doesNotMatch(await failed.text(), /private database detail|operator-test-password/); assert.deepEqual(logs, ['ECONNREFUSED']);
+  const logout = await call('/api/session', { method: 'DELETE', headers: { Origin: config.origin, Cookie: cookie } }); assert.match(logout.headers.get('set-cookie'), /Max-Age=0/);
+});

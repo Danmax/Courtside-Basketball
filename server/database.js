@@ -23,7 +23,10 @@ export function createDatabase(options, factory = mysql.createPool) {
   return {
     async initialize() { await pool.execute(SCHEMA); await pool.execute('INSERT IGNORE INTO courtside_shared_state (id) VALUES (1)'); },
     async health() { await pool.execute('SELECT 1'); },
-    async read() { const [rows] = await pool.execute('SELECT * FROM courtside_shared_state WHERE id = 1'); return decode(rows[0]); },
+    async read(since = null) {
+      if (since !== null) { const [versions] = await pool.execute('SELECT revision FROM courtside_shared_state WHERE id = 1'); if (Number(versions[0]?.revision) === since) return null; }
+      const [rows] = await pool.execute('SELECT * FROM courtside_shared_state WHERE id = 1'); return decode(rows[0]);
+    },
     async write(input) {
       const connection = await pool.getConnection();
       try {
