@@ -1,3 +1,4 @@
+import { validateImage, validateProfile } from './profiles.js';
 import { initial, tick, stop } from './engine.js';
 import { validateGameRules } from './game-rules.js';
 
@@ -36,6 +37,7 @@ export function validateState(source) {
     const t = source.teams[k];
     if (!object(t) || !text(t.name) || !Array.isArray(t.players) || t.players.length > 100) fail('Invalid team or roster (maximum 100 players).');
     const team = { name: t.name, players: [] };
+    if (t.logo !== undefined) team.logo = validateImage(t.logo);
     for (const key of ['score', 'fouls', 'timeouts']) {
       if (!integer(t[key])) fail(`Invalid team ${key}.`);
       team[key] = t[key];
@@ -47,6 +49,7 @@ export function validateState(source) {
       if (!/^\d{1,2}$/.test(number) || numbers.has(number)) fail('Invalid or duplicate jersey number.');
       ids.add(p.id); numbers.add(number);
       const copy = { id: p.id, name: p.name, number: p.number };
+      if (p.profile !== undefined) copy.profile = validateProfile(p.profile);
       for (const key of ['on', 'out']) {
         if (typeof p[key] !== 'boolean') fail('Invalid player eligibility.');
         copy[key] = p[key];

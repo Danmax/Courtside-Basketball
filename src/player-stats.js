@@ -38,7 +38,7 @@ export function tournamentPlayers(tournament) {
         const identity = p.id.startsWith(slot + ':') ? ['directory', p.id.slice(2)] : ['match', m.id, slot, p.id];
         const key = keyFor(teamId, identity);
         const row = rows.get(key) || create(key, teamId, team.name, p);
-        row.name = p.name; row.number = p.number; row.teamName = team.name; row.identityScope = identity[0];
+        row.name = p.name; row.number = p.number; row.teamName = team.name; if (p.profile) row.profile = structuredClone(p.profile); row.identityScope = identity[0];
         for (const stat of statKeys) row[stat] += p[stat];
         const shooting = shootingTotals(m.result.game.shots, slot, p.id);
         for (const key of Object.keys(shooting)) row.shooting[key] += shooting[key];
@@ -53,7 +53,7 @@ export function tournamentPlayers(tournament) {
     for (const p of team.players) {
       const key = keyFor(team.id, ['directory', p.id]);
       const row = rows.get(key) || create(key, team.id, team.name, p);
-      row.name = p.name; row.number = p.number; row.teamName = team.name;
+      row.name = p.name; row.number = p.number; row.teamName = team.name; if (p.profile) row.profile = structuredClone(p.profile);
     }
   }
   return { rows: [...rows.values()], finals: finals.length, recorded: recorded.length, manual: finals.length - recorded.length };

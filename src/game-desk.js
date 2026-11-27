@@ -376,7 +376,11 @@ function render(full = false) {
   for (const k of ['A', 'B']) {
     const t = display.teams[k];
     $(k + 'Title').textContent = t.name;
-    $(k + 'Badge').textContent = initials(t.name);
+    const badge = $(k + 'Badge');
+    if (t.logo) {
+      if (badge.dataset.logo !== t.logo) { badge.replaceChildren(); const image = node('img', '', badge, 'team-logo'); image.src = t.logo; image.alt = t.name + ' logo'; badge.dataset.logo = t.logo; }
+      else badge.firstElementChild.alt = t.name + ' logo';
+    } else { delete badge.dataset.logo; badge.textContent = initials(t.name); }
     $(k + 'Value').textContent = t.score;
     $(k + 'Meta').textContent = `Fouls ${t.fouls} • TO ${t.timeouts}${display.possession === k ? ' • POS' : ''}`;
     $(k + 'Value').parentElement.classList.toggle('has-possession', display.possession === k);

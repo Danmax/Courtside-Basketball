@@ -21,7 +21,7 @@ export function renderTeams(parent, state, ui) {
     const moving = state.running || state.shotRunning;
     const panel = node('article', '', teams, 'team-workspace team-' + k);
     const header = node('header', '', panel, 'team-header');
-    node('span', k === 'A' ? 'H' : 'A', header, 'team-badge');
+    if (t.logo) { const image = node('img', '', header, 'team-logo'); image.src = t.logo; image.alt = t.name + ' logo'; } else node('span', k === 'A' ? 'H' : 'A', header, 'team-badge');
     const title = node('div', '', header);
     node('small', k === 'A' ? 'HOME TEAM' : 'AWAY TEAM', title, 'eyebrow');
     const name = ui.field(title, 'Team name', t.name, (x, v) => renameTeam(x, k, v)); name.required = true; name.maxLength = 80;

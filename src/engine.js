@@ -189,10 +189,11 @@ export function resetGame(s) {
   fresh.game = fresh.length * 1000; fresh.shot = fresh.shotDefault * 1000;
   for (const k of teamKeys) {
     fresh.teams[k].name = s.teams[k].name;
+    if (s.teams[k].logo !== undefined) fresh.teams[k].logo = s.teams[k].logo;
     fresh.teams[k].timeouts = fresh.timeoutsPerTeam;
     const starters = s.teams[k].players.filter(p => p.on).slice(0, 5).map(p => p.id);
     for (const p of s.teams[k].players) if (starters.length < 5 && !starters.includes(p.id)) starters.push(p.id);
-    fresh.teams[k].players = s.teams[k].players.map(p => player(p.id, p.name, p.number, starters.includes(p.id)));
+    fresh.teams[k].players = s.teams[k].players.map(p => ({ ...player(p.id, p.name, p.number, starters.includes(p.id)), ...(p.profile ? { profile: structuredClone(p.profile) } : {}) }));
   }
   Object.assign(s, fresh);
 }

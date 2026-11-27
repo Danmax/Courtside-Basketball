@@ -1,3 +1,4 @@
+import { imageUpload, profileImage } from './image-upload.js';
 import { appStorage, appNow } from './app-storage.js';
 import { node, initials, confirmChange } from './ui.js';
 import { boxScore } from './reports.js';
@@ -49,17 +50,18 @@ export function mountTournament(app, { organizer = false } = {}) {
     const submit = build(body);
     const buttons = node('div', '', body, 'dialog-actions'); action(buttons, 'Cancel', () => dialog.close());
     const save = node('button', submitLabel, buttons); save.type = 'submit';
+    let submitted = false;
     body.onsubmit = async event => {
       event.preventDefault();
       if (save.disabled) return;
       save.disabled = true;
       try {
         if (storage.getItem(TOURNAMENT_KEY) !== expectedRaw) throw new Error('The tournament changed. Close this dialog and review the latest data.');
-        await submit(); dialog.close(); notify('');
+        await submit(); submitted = true; dialog.close(); notify('');
       } catch (e) { error.textContent = e.message; }
       finally { save.disabled = false; }
     };
-    dialog.onclose = () => { render(); if (trigger?.isConnected) trigger.focus(); else shell.querySelector('[aria-selected=true]')?.focus(); };
+    dialog.onclose = () => { if (!submitted) render(); if (trigger?.isConnected) trigger.focus(); else shell.querySelector('[aria-selected=true]')?.focus(); };
     dialog.showModal();
   }
   function download(text, name) {
@@ -81,7 +83,8 @@ export function mountTournament(app, { organizer = false } = {}) {
   function editTeam(team = null) {
     form(team ? 'Edit team' : 'Add team', body => {
       const name = field(body, 'Team name', team?.name || ''); name.required = true; name.maxLength = 80;
-      return () => update(t => saveTeam(t, team?.id, name.value));
+      const logo = imageUpload(body, 'Team logo', team?.logo);
+      return () => update(t => saveTeam(t, team?.id, name.value, logo()));
     }, 'Save team');
   }
   function editPlayer(team, player = null) {
@@ -89,7 +92,12 @@ export function mountTournament(app, { organizer = false } = {}) {
       node('p', team.name + ' · Directory changes apply when loading a new match. A game already on the desk keeps its roster and eligibility.', body);
       const name = field(body, 'Player name', player?.name || ''); name.required = true; name.maxLength = 80;
       const number = field(body, 'Jersey number', player?.number || ''); number.required = true; number.pattern = '[0-9]{1,2}'; number.maxLength = 2;
-      return () => update(t => savePlayer(t, team.id, player?.id, name.value, number.value));
+      const position = field(body, 'Position', player?.profile?.position || ''); position.maxLength = 40;
+      const height = field(body, 'Height (cm, optional)', player?.profile?.heightCm ?? '', 'number'); height.min = 40; height.max = 280; height.step = 1;
+      const hometown = field(body, 'Hometown', player?.profile?.hometown || ''); hometown.maxLength = 80;
+      const bioLabel = node('label', 'Biography', body), bio = node('textarea', '', bioLabel); bio.value = player?.profile?.bio || ''; bio.maxLength = 500;
+      const photo = imageUpload(body, 'Player photo', player?.profile?.photo);
+      return () => update(t => savePlayer(t, team.id, player?.id, name.value, number.value, { position: position.value, heightCm: height.value === '' ? null : Number(height.value), hometown: hometown.value, bio: bio.value, photo: photo() }));
     }, 'Save player');
   }
   function editMatch(match = null) {
@@ -181,14 +189,14 @@ export function mountTournament(app, { organizer = false } = {}) {
     const grid = node('div', '', parent, 'directory-grid');
     for (const team of data.teams) {
       const card = node('article', '', grid, 'directory-team'); card.dataset.teamId = team.id;
-      const top = node('header', '', card); node('span', initials(team.name), top, 'team-badge'); node('h3', team.name, top); node('span', team.players.length + ' players', top, 'muted');
+      const top = node('header', '', card); profileImage(top, team.logo, team.name + ' logo', 'team-logo'); if (!team.logo) node('span', initials(team.name), top, 'team-badge'); node('h3', team.name, top); node('span', team.players.length + ' players', top, 'muted');
       const actions = node('div', '', card, 'directory-actions');
       action(actions, 'Add player', () => editPlayer(team)); action(actions, 'Edit team', () => editTeam(team));
       action(actions, 'Delete team', () => confirmed('Delete ' + team.name + '? Teams referenced by matches cannot be deleted.', () => update(t => deleteTeam(t, team.id))), 'text-danger');
       const roster = node('details', '', card); roster.open = data.teams.length <= 4; node('summary', `Roster · ${team.players.length} players`, roster);
       for (const p of team.players) {
         const row = node('div', '', roster, 'directory-player'); row.dataset.playerId = p.id;
-        node('span', '#' + p.number, row, 'jersey'); node('strong', p.name, row);
+        profileImage(row, p.profile?.photo, p.name + ' photo'); node('span', '#' + p.number, row, 'jersey'); node('strong', p.name, row);
         action(row, 'Edit player', () => editPlayer(team, p));
         action(row, 'Delete player', () => confirmed('Remove ' + p.name + ' from the directory? Existing game snapshots will be kept.', () => update(t => deletePlayer(t, team.id, p.id))), 'text-danger');
       }
@@ -218,7 +226,14 @@ export function mountTournament(app, { organizer = false } = {}) {
         action(card, coaches ? 'Add coach' : 'Add player', () => coaches ? editCoach(team) : editPlayer(team), 'primary');
         for (const person of (coaches ? team.coaches || [] : team.players).filter(p => p.name.toLowerCase().includes(search.value.trim().toLowerCase()))) {
           count++; const row = node('div', '', card, 'directory-player');
+          if (!coaches) profileImage(row, person.profile?.photo, person.name + ' photo');
           node('strong', person.name, row); node('span', coaches ? person.role : '#' + person.number, row, 'muted');
+          if (!coaches) {
+            const detail = node('details', '', card, 'directory-profile'); node('summary', person.name + ' · Profile', detail);
+            profileImage(detail, person.profile?.photo, person.name + ' photo', 'profile-portrait');
+            node('p', [person.profile?.position, person.profile?.heightCm ? person.profile.heightCm + ' cm' : '', person.profile?.hometown].filter(Boolean).join(' · ') || 'Add position, height and hometown using Edit player.', detail, 'muted');
+            node('p', person.profile?.bio || 'No biography added yet.', detail);
+          }
           action(row, coaches ? 'Edit coach' : 'Edit player', () => coaches ? editCoach(team, person) : editPlayer(team, person));
           action(row, coaches ? 'Remove coach' : 'Delete player', () => confirmed('Remove ' + person.name + ' from ' + team.name + '?', () => update(t => coaches ? deleteCoach(t, team.id, person.id) : deletePlayer(t, team.id, person.id))), 'text-danger');
         }

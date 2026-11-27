@@ -1,3 +1,4 @@
+import { validateImage, validateProfile } from './profiles.js';
 import { initial, resetGame } from './engine.js';
 import { validateState } from './game-transfer.js';
 
@@ -14,28 +15,32 @@ const allocate = (t, prefix) => {
 export function initialTournament() { return { id: 'local-tournament', name: 'My tournament', nextId: 1, teams: [], matches: [] }; }
 export function teamById(t, id) { const team = t.teams.find(team => team.id === id); require(team, 'Team no longer exists.'); return team; }
 export function matchById(t, id) { const match = t.matches.find(match => match.id === id); require(match, 'Match no longer exists.'); return match; }
-export function saveTeam(t, id, name) {
+export function saveTeam(t, id, name, logo) {
   require(nameValue(name), 'Enter a team name (1–80 characters).');
   require(!t.teams.some(team => team.id !== id && team.name.toLowerCase() === name.trim().toLowerCase()), 'Team names must be unique.');
+  if (logo !== undefined) validateImage(logo);
   if (id) teamById(t, id).name = name.trim();
   else { require(t.teams.length < 64, 'Maximum 64 teams.'); t.teams.push({ id: allocate(t, 'team-'), name: name.trim(), players: [] }); }
+  if (logo !== undefined) (id ? teamById(t, id) : t.teams.at(-1)).logo = logo;
 }
 export function deleteTeam(t, id) {
   teamById(t, id);
   require(!t.matches.some(m => m.homeId === id || m.awayId === id), 'Remove this team’s matches before deleting the team.');
   t.teams = t.teams.filter(team => team.id !== id);
 }
-export function savePlayer(t, teamId, id, name, number) {
+export function savePlayer(t, teamId, id, name, number, profile) {
   const team = teamById(t, teamId), jersey = String(number).trim();
   require(nameValue(name), 'Enter a player name (1–80 characters).');
   require(/^\d{1,2}$/.test(jersey), 'Use a jersey number from 0–99 (00 is accepted).');
   require(!team.players.some(p => p.id !== id && String(p.number) === jersey), 'Jersey numbers must be unique within a team.');
+  const details = profile === undefined ? undefined : validateProfile(profile);
   if (id) {
     const p = team.players.find(p => p.id === id); require(p, 'Player no longer exists.'); Object.assign(p, { name: name.trim(), number: jersey });
   } else {
     require(team.players.length < 100, 'Maximum 100 players per team.');
     team.players.push({ id: allocate(t, 'player-'), name: name.trim(), number: jersey });
   }
+  if (details !== undefined) (id ? team.players.find(p => p.id === id) : team.players.at(-1)).profile = details;
 }
 export function deletePlayer(t, teamId, id) {
   const team = teamById(t, teamId); require(team.players.some(p => p.id === id), 'Player no longer exists.');
@@ -120,7 +125,8 @@ export function prepareMatchGame(t, id, current) {
   for (const [k, teamId] of [['A', match.homeId], ['B', match.awayId]]) {
     const team = teamById(t, teamId); require(team.players.length > 0, `${team.name} needs at least one player before loading.`);
     game.teams[k].name = team.name;
-    game.teams[k].players = team.players.map((p, i) => ({ ...initial().teams[k].players[0], id: k + ':' + p.id, name: p.name, number: p.number, on: i < 5 }));
+    if (team.logo) game.teams[k].logo = team.logo; else delete game.teams[k].logo;
+    game.teams[k].players = team.players.map((p, i) => ({ ...initial().teams[k].players[0], id: k + ':' + p.id, name: p.name, number: p.number, ...(p.profile ? { profile: structuredClone(p.profile) } : {}), on: i < 5 }));
   }
   game.matchLink = { tournamentId: t.id, matchId: match.id, homeId: match.homeId, awayId: match.awayId };
   return game;
@@ -137,10 +143,11 @@ export function validateTournament(source) {
     require(nameValue(team.name) && !t.teams.some(q => q.name.toLowerCase() === team.name.trim().toLowerCase()), 'Invalid or duplicate team name.');
     require(Array.isArray(team.players) && team.players.length <= 100, 'Invalid roster.');
     const copy = { id: team.id, name: team.name.trim(), players: [] };
+    if (team.logo !== undefined) copy.logo = validateImage(team.logo);
     for (const p of team.players) {
       require(p && nameValue(p.name), 'Invalid player.'); checkId(p.id);
       require(/^\d{1,2}$/.test(String(p.number)) && !copy.players.some(q => q.number === String(p.number)), 'Invalid or duplicate jersey number.');
-      copy.players.push({ id: p.id, name: p.name.trim(), number: String(p.number) });
+      copy.players.push({ id: p.id, name: p.name.trim(), number: String(p.number), ...(p.profile !== undefined ? { profile: validateProfile(p.profile) } : {}) });
     }
     if (team.coaches !== undefined) {
       require(Array.isArray(team.coaches) && team.coaches.length <= 20, 'Invalid coaching staff.');

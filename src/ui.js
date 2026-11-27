@@ -32,6 +32,7 @@ export function heading(parent, eyebrow, title) {
 }
 export function identity(parent, p) {
   const wrap = node('div', '', parent, 'player-identity');
+  if (p.profile?.photo) { const image = node('img', '', wrap, 'profile-photo'); image.src = p.profile.photo; image.alt = p.name + ' photo'; }
   node('span', p.number, wrap, 'jersey');
   const copy = node('div', '', wrap);
   node('h3', p.name, copy);
