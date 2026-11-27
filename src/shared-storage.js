@@ -23,7 +23,7 @@ export class SharedStorage {
     try {
       const started = this.clock(), response = await this.request('/api/state?since=' + this.state.revision);
       this.offset = response.serverTime - (started + this.clock()) / 2;
-      if (!response.unchanged) this.accept(response.state); this.status('connected');
+      if (!response.unchanged) this.accept(response.state); this.status(this.saving ? 'saving' : 'connected');
     } catch (error) { this.status('offline'); throw error; }
     finally { this.refreshing = false; }
   }

@@ -12,10 +12,10 @@
     "test:browser": "playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.1",
-    "vite": "^6.0.0"
+    "@playwright/test": "^1.65.1"
   },
   "dependencies": {
-    "mysql2": "^3.24.6"
+    "mysql2": "^3.24.6",
+    "vite": "^6.4.6"
   }
 }

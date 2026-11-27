@@ -83,7 +83,7 @@ if (!readonly) {
   node('span', 'MATCH OPERATIONS', title, 'eyebrow');
   node('h1', view === 'referee' ? 'Official’s desk' : 'Game desk', title);
   const introActions = node('div', '', intro, 'game-intro-actions');
-  node('span', 'LOCAL GAME · MANUAL CONTROL', introActions, 'local-label');
+  node('span', `${typeof storage.save === 'function' ? 'SHARED' : 'LOCAL'} GAME · MANUAL CONTROL`, introActions, 'local-label');
   rulesActions = node('div', '', introActions);
 }
 const board = node('section', '', app, 'board');

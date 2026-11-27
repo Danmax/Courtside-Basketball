@@ -84,3 +84,14 @@ test('polling refreshes all revisions, ignores older responses, and read-only ad
   storage.accept(starting); assert.equal(storage.state.revision, 1);
   storage.readOnly = true; await assert.rejects(storage.save(KEY, JSON.stringify(game()), storage.getItem(KEY)), /read-only/);
 });
+
+test('polling during an acknowledged save keeps the saving status visible', async () => {
+  let acknowledge; const phases = [];
+  const storage = new SharedStorage({ state: empty(), clock: () => 1000, status: phase => phases.push(phase), request: async (path, options) => {
+    if (options?.method === 'PUT') return new Promise(resolve => { acknowledge = () => resolve({ state: { ...empty(), revision: 1, game: options.body.value } }); });
+    return { unchanged: true, serverTime: 1000 };
+  } });
+  const saving = storage.save(KEY, JSON.stringify(game()), null);
+  await storage.refresh(); assert.equal(phases.at(-1), 'saving'); assert.equal(storage.getItem(KEY), null);
+  acknowledge(); await saving; assert.equal(phases.at(-1), 'connected'); assert.equal(storage.saving, false);
+});

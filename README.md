@@ -1,14 +1,35 @@
 # Courtside — Basketball Game Desk
 
-Requires Node.js 22+ and npm. Run `npm install`, `npm run dev`, then open the URL printed by Vite. `npm test` runs engine tests; `npm run build` builds production files.
+Requires Node.js 22+ and npm. Run `npm install`, `npm run dev`, then open the URL printed by Vite for browser-local storage. `npm test` runs engine, storage and server tests; `npm run build` builds production files. Use the Node server below for shared MySQL storage.
 
-Views: `/` controller, `/?view=tournament` tournament manager, `/?view=players` Player Stats, `/?view=shots` shot tracker, `/?view=players&display=1` player presentation board, `/?view=scoreboard` full-screen display, `/?view=referee` clock controls, `/?view=overlay` transparent lower third. Use the same origin and browser profile for localStorage synchronization. OBS/PRISM generally use a separate browser profile and need a shared backend; not yet supported reliably.
+Views: `/` controller, `/?view=tournament` tournament manager, `/?view=players` Player Stats, `/?view=shots` shot tracker, `/?view=players&display=1` player presentation board, `/?view=scoreboard` full-screen display, `/?view=referee` clock controls, `/?view=overlay` transparent lower third. Local storage synchronizes within one origin/browser profile. The MySQL server shares data between authenticated browsers and devices. OBS/PRISM application-specific validation remains outstanding.
 
 This is a reconstructed starter, not an exact migration of the previous HTML or separate pages. Uses a new storage key; existing legacy games are not imported. No external background image is included; breaks use a scoreboard banner. Timing defaults to continuous play after scoring, not a verified league rule set. Engine tests and automated Chrome browser checks cover the workflows below; cross-device and OBS/PRISM validation remain outstanding.
 
+## Shared MySQL storage
+
+The Node server serves the built frontend and a same-origin authenticated API. One shared game and one tournament are stored in an additive `courtside_shared_state` InnoDB table. Startup creates only this table and its singleton row if absent; it never clears existing data or modifies other tables. Row locking and revision checks reject competing saves instead of silently overwriting them. Lost responses are checked against the last save receipt without automatically replaying scoring actions.
+
+For `courtside.frowear.com`, configure these secrets in Hostinger's **server environment** (never in frontend variables or Git):
+
+- `DB_PASSWORD`: password for the existing MySQL user.
+- `COURTSIDE_ADMIN_PASSWORD`: a separate operator access password, at least 16 characters.
+
+Server defaults are `DB_HOST=127.0.0.1`, `DB_PORT=3306`, `DB_NAME=u130206374_courtside`, `DB_USER=u130206374_courtsideAdmin`, `APP_ORIGIN=https://courtside.frowear.com`, and `NODE_ENV=production`. Hostinger Node applications on the same account must connect through `127.0.0.1`; a remote database IP belongs only in an external development environment. Remote connections enforce certificate-verified TLS; `DB_SSL_CA` can supply a custom CA. Do not disable certificate verification. Hostinger supplies the listening `PORT`; local runs default to 3000.
+
+Build with `npm ci && npm run build`; start with `npm start`. Hostinger needs a **Node.js server** deployment using Node 22, npm, build script `build`, entry file `server/index.js`, and no static output-directory setting. A Vite static deployment of `dist` alone retains local storage and cannot connect to MySQL. After activation, `/api/health` checks the database connection without exposing credentials or game data. `/api/state` requires sign-in.
+
+Operators sign in with the access password. Sessions use signed HttpOnly, SameSite=Strict cookies, expire after eight hours, and require HTTPS in production. Displays sign in with a viewer session that cannot write; scoreboard, overlay and Player Stats pages also reject writes in the client. Passwords are not saved in browser storage. Mutating requests must originate from `APP_ORIGIN`.
+
+On first shared use, a browser containing old data offers **Export browser data**, **Use shared data**, or **Continue with browser data**. An empty database additionally offers **Back up & copy browser data**: download backups first, copy both datasets together, and stop imported clocks. Original browser data remains untouched. If shared data already exists, export the browser data and use the normal validated import/replacement workflows when appropriate. `?storage=local` explicitly selects device-only mode; **Open shared data** switches back. The app never silently falls back to local writes during a database outage.
+
+Shared views poll for changes every second and project countdowns from timestamps with a server-time offset. Saves appear only after server acknowledgement. Failed saves remain visible and must be reviewed before retrying; unsent actions are not queued offline. Database transactions prevent lost updates, but there is no single server-owned game clock or command authority yet. Network latency and device clock changes can still affect displayed timing; officials retain manual control after breaks.
+
+For local backend development, copy `.env.example` to the ignored `.env`, supply your own test database and secrets, set `DB_HOST` for that database, `APP_ORIGIN=http://127.0.0.1:5173`, `NODE_ENV=development`, and `COURTSIDE_API_PROXY=http://127.0.0.1:3000`. Run `npm run server:dev` and `npm run dev -- --host 127.0.0.1` separately. Without `COURTSIDE_API_PROXY`, Vite keeps browser-local mode. The built app can instead be served directly with `npm start` and `APP_ORIGIN=http://127.0.0.1:3000` in development. Avoid shared production data for development tests.
+
 ## Tournament management
 
-Open **Tournament** in the top navigation (`/?view=tournament`). The app currently manages one local tournament per browser origin/profile. Rename it as needed; its directory and schedule are separate from the game desk.
+Open **Tournament** in the top navigation (`/?view=tournament`). The app manages one tournament in the selected storage: shared database or local browser origin/profile. Rename it as needed; its directory and schedule are separate from the game desk.
 
 - **Teams & players:** create, rename and delete teams; add, edit and remove directory players. Team names are unique, and jersey numbers are unique within each team. **Copy game desk teams** copies the current two team rosters into the directory without changing their live stats. Directory edits apply to future match loads, while active games and recorded box scores retain their own roster snapshots. Teams referenced by any match cannot be deleted until those matches are removed.
 - **Matches:** schedule home/away teams, an optional start time (entered/displayed in your browser's local time), and a court/venue. Edit, cancel, restore or delete scheduled matches. Final matches must be reopened before deletion; reopening clears their result and archived box score. Filter by scheduled, final or cancelled status.
@@ -18,7 +39,7 @@ Open **Tournament** in the top navigation (`/?view=tournament`). The app current
 
 **Export tournament / Import tournament** back up and restore the directory, schedule, results and archived box scores. Imports validate and preview the file and ask for replacement confirmation. Limits are 64 teams, 100 players per team, 500 matches and a 4 MB backup. Stored data uses a separate `basketball_tournament_v1` key; existing game storage is not migrated or removed. Corrupt tournament data can be exported for recovery, and storage write failures preserve the previous saved state.
 
-In-progress game data still uses the separate **Export game** backup. Restoring a standalone game backup detaches its tournament association; it does not automatically update tournament results. Tournament imports require resetting any linked game first. Export both datasets when preserving tournament and current game data. Same-browser synchronization remains local, with no authoritative server, cross-device support, automatic brackets or custom standings policies yet.
+In-progress game data still uses the separate **Export game** backup. Restoring a standalone game backup detaches its tournament association; it does not automatically update tournament results. Tournament imports require resetting any linked game first. Export both datasets when preserving tournament and current game data. Automatic brackets, custom standings policies and authoritative server clock ownership remain outstanding.
 
 ## Court shot tracker
 
@@ -51,7 +72,7 @@ Player Stats spotlights now include recorded FGM/FGA, FG%, 3PM/3PA and FTM/FTA. 
 
 Finalizing a linked match saves the shot chart in its archived box score. Select that match under **Game source** to review it read-only. Changes to the current game after finalizing require recording the result again to update the archive. Resetting/loading a new game clears its shot history. A game identity prevents pending shots or stale void actions from being applied to a newly reset/replaced game.
 
-Game and tournament JSON backups preserve shot records; old backups without shot history still load with an empty history and no inferred attempts. These are optional additions to the existing game format/storage key, with no destructive migration. A game supports up to 5,000 shot records (including voided entries), subject to existing backup/storage size limits. The shot page saves on actions and projects clocks for display; it does not add a background clock writer. The app still requires a shared browser origin/profile and has no authoritative multi-device server.
+Game and tournament JSON backups preserve shot records; old backups without shot history still load with an empty history and no inferred attempts. These are optional additions to the existing game format/storage key, with no destructive migration. A game supports up to 5,000 shot records (including voided entries), subject to existing backup/storage size limits. The shot page saves on actions and projects clocks for display; it does not add a background clock writer. Shared mode synchronizes authenticated devices, while authoritative clock ownership remains outstanding.
 
 ## Player Stats and game facts
 
@@ -115,7 +136,7 @@ Rules survive **Reset game (keep rosters)**, loading the next tournament match, 
 
 Controller and referee countdown frames project elapsed time from the saved timestamp. They save on official actions and clock/break expiration instead of rewriting storage every 100 ms. Pausing, exporting, reporting and finalizing still account for elapsed player time. Expiration leaves both clocks stopped and records its journal entry once.
 
-Game-desk forms and fields reject a different game loaded while editing. Tournament forms require reviewing again if the directory or schedule changes while open. Reset/import/delete confirmations allow queued cross-tab updates to arrive before rechecking the latest data; conditional writes preserve newer saved changes. These checks reduce local races; they do not provide an atomic transaction or authoritative multi-device clock owner. Team names must be nonblank and at most 80 characters after trimming, and halftime entry accepts whole minutes from 0–1440 with both clocks stopped and no active break.
+Game-desk forms and fields reject a different game loaded while editing. Tournament forms require reviewing again if the directory or schedule changes while open. Reset/import/delete confirmations allow queued cross-tab updates to arrive before rechecking the latest data; conditional writes preserve newer saved changes. Local mode reduces browser races; shared mode additionally checks revisions inside a database transaction. Neither provides an authoritative multi-device clock owner. Team names must be nonblank and at most 80 characters after trimming, and halftime entry accepts whole minutes from 0–1440 with both clocks stopped and no active break.
 
 These additions use the existing storage key and require no storage migration.
 
@@ -145,13 +166,13 @@ UX checks cover active navigation at phone/desktop sizes, display-menu keyboard 
 
 ## Backlog
 
-1. Add authoritative server (WebSocket or Supabase), single-writer clock ownership, reconnect and cross-device synchronization. Local identity/conditional-write checks and expiration-only background saves reduce overwrite risk, but simultaneous controllers still require server transactions.
+1. MySQL shared storage, authenticated sessions, revision-checked server transactions, polling, explicit browser migration and save-receipt recovery implemented. Remaining: authoritative server command/clock ownership, lower-latency updates, multi-device network interruption tests, and OBS/PRISM session validation.
 2. Custom game-rule setup completed: periods/durations, optional shot clock and manual reset, personal/team foul limits and reset policy, timeout allowance/durations, halftime and stop-after-score behavior. Remaining: verified league presets, overtime, automatic bonus/free-throw rules, timeout replenishment policies and conditional late-game clock rules.
 3. Completed: roster CRUD, substitution dialog, no-bench foul-out handling, game reset preserving rosters, shot-clock independent controls and exact official time entry.
 4. Export/import and storage error handling completed. Court shot attempts/makes, free throws and shot-specific void corrections completed. Remaining: assists linked to plays, general undo/corrections and legacy storage migration.
 5. Scoreboard, overlay and court/roster/report UI redesigned with 1080p browser checks. Remaining: configurable halftime background image, configurable broadcast themes and OBS/PRISM integration tests.
 6. Team/roster views, report views and shared UI helpers extracted. The entry point now routes between game-desk.js and tournament-view.js. Continue splitting scoreboard, referee, journal and overlay modules out of game-desk.js. Expand browser coverage for timer boundaries and interrupted imports.
 
-7. Tournament directory, manual schedule, results, standings and backups implemented. Remaining: multiple tournaments, automatic round-robin/brackets, configurable standings policies and shared backend.
+7. Tournament directory, manual schedule, results, standings, backups and shared MySQL persistence implemented. Remaining: multiple tournaments, automatic round-robin/brackets and configurable standings policies.
 
 8. Player Stats and data-derived player/game facts implemented, including read-only presentation. Recorded shooting percentages added to Player Stats and reports. Remaining: configurable presentation fact selection.
