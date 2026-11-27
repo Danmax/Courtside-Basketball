@@ -6,7 +6,7 @@ const integer = n => Number.isSafeInteger(n) && n >= 0;
 const nameValue = value => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 80;
 const idValue = value => typeof value === 'string' && /^[a-zA-Z0-9:_-]{1,100}$/.test(value);
 const allocate = (t, prefix) => {
-  const ids = new Set([...t.teams, ...t.teams.flatMap(team => team.players), ...t.matches].map(item => item.id));
+  const ids = new Set([...t.teams, ...t.teams.flatMap(team => [...team.players, ...(team.coaches || [])]), ...t.matches].map(item => item.id));
   let id;
   do { id = prefix + t.nextId++; } while (ids.has(id));
   return id;
@@ -40,6 +40,26 @@ export function savePlayer(t, teamId, id, name, number) {
 export function deletePlayer(t, teamId, id) {
   const team = teamById(t, teamId); require(team.players.some(p => p.id === id), 'Player no longer exists.');
   team.players = team.players.filter(p => p.id !== id);
+}
+export function saveCoach(t, teamId, id, name, role = 'Head coach') {
+  const team = teamById(t, teamId);
+  require(nameValue(name), 'Enter a coach name (1–80 characters).');
+  require(['Head coach', 'Assistant coach', 'Team manager'].includes(role), 'Choose a valid staff role.');
+  const coaches = team.coaches || [];
+  require(!coaches.some(c => c.id !== id && c.name.toLowerCase() === name.trim().toLowerCase()), 'This coach is already on the team.');
+  if (id) {
+    const coach = coaches.find(c => c.id === id); require(coach, 'Coach no longer exists.');
+    Object.assign(coach, { name: name.trim(), role });
+  } else {
+    require(coaches.length < 20, 'Maximum 20 coaches and staff per team.');
+    coaches.push({ id: allocate(t, 'coach-'), name: name.trim(), role });
+  }
+  team.coaches = coaches;
+}
+export function deleteCoach(t, teamId, id) {
+  const team = teamById(t, teamId);
+  require(team.coaches?.some(c => c.id === id), 'Coach no longer exists.');
+  team.coaches = team.coaches.filter(c => c.id !== id);
 }
 function matchDetails(t, data) {
   teamById(t, data.homeId); teamById(t, data.awayId);
@@ -121,6 +141,16 @@ export function validateTournament(source) {
       require(p && nameValue(p.name), 'Invalid player.'); checkId(p.id);
       require(/^\d{1,2}$/.test(String(p.number)) && !copy.players.some(q => q.number === String(p.number)), 'Invalid or duplicate jersey number.');
       copy.players.push({ id: p.id, name: p.name.trim(), number: String(p.number) });
+    }
+    if (team.coaches !== undefined) {
+      require(Array.isArray(team.coaches) && team.coaches.length <= 20, 'Invalid coaching staff.');
+      copy.coaches = [];
+      for (const coach of team.coaches) {
+        require(coach && nameValue(coach.name), 'Invalid coach.'); checkId(coach.id);
+        require(['Head coach', 'Assistant coach', 'Team manager'].includes(coach.role), 'Invalid staff role.');
+        require(!copy.coaches.some(c => c.name.toLowerCase() === coach.name.trim().toLowerCase()), 'Duplicate coach.');
+        copy.coaches.push({ id: coach.id, name: coach.name.trim(), role: coach.role });
+      }
     }
     t.teams.push(copy);
   }

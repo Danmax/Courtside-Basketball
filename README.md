@@ -176,3 +176,7 @@ UX checks cover active navigation at phone/desktop sizes, display-menu keyboard 
 7. Tournament directory, manual schedule, results, standings, backups and shared MySQL persistence implemented. Remaining: multiple tournaments, automatic round-robin/brackets and configurable standings policies.
 
 8. Player Stats and data-derived player/game facts implemented, including read-only presentation. Recorded shooting percentages added to Player Stats and reports. Remaining: configurable presentation fact selection.
+
+## Host Organizer
+
+Open **Host Organizer** (`/?view=organizer`) to manage the tournament's teams, coaching staff and players. Teams supports roster creation and editing. Coaches supports adding, editing and removing head coaches, assistant coaches and team managers (up to 20 staff per team). Players provides a searchable directory with team filtering and jersey-number validation. Coach names must be unique within their team. Staff and rosters are included in tournament exports/imports and authenticated MySQL saves; existing backups without coaching staff remain valid. Changes do not rewrite active games or archived box scores. Organizer access uses the existing operator sign-in in shared mode; separate host accounts, organization isolation and coach logins are not implemented.

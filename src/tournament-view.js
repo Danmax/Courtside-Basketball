@@ -3,14 +3,17 @@ import { node, initials, confirmChange } from './ui.js';
 import { boxScore } from './reports.js';
 import { tick, KEY } from './engine.js';
 import { readGame, writeGame } from './storage.js';
-import { initialTournament, saveTeam, deleteTeam, savePlayer, deletePlayer, saveMatch, deleteMatch, setMatchStatus, recordResult, standings, prepareMatchGame, matchById, teamById } from './tournament.js';
+import { initialTournament, saveCoach, deleteCoach, saveTeam, deleteTeam, savePlayer, deletePlayer, saveMatch, deleteMatch, setMatchStatus, recordResult, standings, prepareMatchGame, matchById, teamById } from './tournament.js';
 import { TOURNAMENT_KEY, MAX_TOURNAMENT_BYTES, readTournament, writeTournament, exportTournament, importTournament } from './tournament-storage.js';
 
-export function mountTournament(app) {
+export function mountTournament(app, { organizer = false } = {}) {
+  const sections = organizer ? [['teams', 'Teams'], ['coaches', 'Coaches'], ['players', 'Players']] : [['teams', 'Teams & players'], ['matches', 'Matches'], ['standings', 'Standings']];
+  const sectionIds = sections.map(([id]) => id);
   const storage = appStorage();
   document.body.className = 'tournament';
   document.getElementById('break').hidden = true;
-  let data = initialTournament(), section = ['teams', 'matches', 'standings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'teams', filter = 'all';
+  let data = initialTournament(), section = sectionIds.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'teams', filter = 'all';
+  let directorySearch = '', directoryTeam = '';
   function rememberSection() { const url = new URL(location.href); url.hash = section; history.replaceState(null, '', url); }
   const notice = node('p', '', app, 'tournament-notice'); notice.setAttribute('role', 'status');
   const shell = node('div', '', app), dialog = node('dialog', '', app);
@@ -193,6 +196,37 @@ export function mountTournament(app) {
     }
     if (!data.teams.length) node('p', 'Create your first team, or copy the two teams already on the game desk.', grid, 'empty-state');
   }
+  function editCoach(team, coach = null) {
+    form(coach ? 'Edit coach' : 'Add coach', body => {
+      node('p', team.name, body, 'muted');
+      const name = field(body, 'Coach name', coach?.name || ''); name.required = true; name.maxLength = 80;
+      const role = select(body, 'Staff role', ['Head coach', 'Assistant coach', 'Team manager'].map(v => [v, v]), coach?.role);
+      return () => update(t => saveCoach(t, team.id, coach?.id, name.value, role.value));
+    }, 'Save coach');
+  }
+  function renderDirectory(parent, kind) {
+    const coaches = kind === 'coaches';
+    node('h2', coaches ? 'Coaching staff' : 'Player directory', parent);
+    const filters = node('div', '', parent, 'tournament-section-top');
+    const search = field(filters, 'Search name', directorySearch); search.type = 'search';
+    const teamFilter = select(filters, 'Filter team', [['', 'All teams'], ...data.teams.map(t => [t.id, t.name])], data.teams.some(t => t.id === directoryTeam) ? directoryTeam : '');
+    const list = node('div', '', parent, 'directory-grid');
+    function draw() {
+      list.replaceChildren(); let count = 0;
+      for (const team of data.teams.filter(t => !teamFilter.value || t.id === teamFilter.value)) {
+        const card = node('article', '', list, 'directory-team'); node('h3', team.name, card);
+        action(card, coaches ? 'Add coach' : 'Add player', () => coaches ? editCoach(team) : editPlayer(team), 'primary');
+        for (const person of (coaches ? team.coaches || [] : team.players).filter(p => p.name.toLowerCase().includes(search.value.trim().toLowerCase()))) {
+          count++; const row = node('div', '', card, 'directory-player');
+          node('strong', person.name, row); node('span', coaches ? person.role : '#' + person.number, row, 'muted');
+          action(row, coaches ? 'Edit coach' : 'Edit player', () => coaches ? editCoach(team, person) : editPlayer(team, person));
+          action(row, coaches ? 'Remove coach' : 'Delete player', () => confirmed('Remove ' + person.name + ' from ' + team.name + '?', () => update(t => coaches ? deleteCoach(t, team.id, person.id) : deletePlayer(t, team.id, person.id))), 'text-danger');
+        }
+      }
+      if (!count) node('p', data.teams.length ? 'No matching entries. Add staff or players to a team to get started.' : 'Create a team in Teams first.', list, 'empty-state');
+    }
+    search.oninput = teamFilter.onchange = () => { directorySearch = search.value; directoryTeam = teamFilter.value; draw(); }; draw();
+  }
   function renderMatches(parent) {
     const tools = node('div', '', parent, 'tournament-section-top'); node('h2', 'Match schedule', tools);
     action(tools, 'Schedule match', () => editMatch(), 'primary').disabled = data.teams.length < 2;
@@ -243,18 +277,19 @@ export function mountTournament(app) {
   }
   function render() {
     shell.replaceChildren();
-    const intro = node('div', '', shell, 'page-intro'); const title = node('div', '', intro); node('span', 'TOURNAMENT OPERATIONS', title, 'eyebrow'); node('h1', data.name, title);
+    const intro = node('div', '', shell, 'page-intro'); const title = node('div', '', intro); node('span', organizer ? 'HOST OPERATIONS' : 'TOURNAMENT OPERATIONS', title, 'eyebrow'); node('h1', organizer ? 'Host Organizer' : data.name, title);
+    if (organizer) node('p', data.name + ' · Manage team rosters and coaching staff. Live games keep their roster snapshots.', title, 'muted');
     const tools = node('div', '', intro, 'tournament-tools');
     action(tools, 'Rename tournament', () => form('Rename tournament', body => { const name = field(body, 'Tournament name', data.name); name.required = true; name.maxLength = 80; return () => update(t => { t.name = name.value.trim(); }); }));
     action(tools, 'Export tournament', backup); action(tools, 'Import tournament', importBackup);
     const stats = node('div', '', shell, 'tournament-stats');
-    for (const [n, label] of [[data.teams.length, 'TEAMS'], [data.teams.reduce((n, t) => n + t.players.length, 0), 'PLAYERS'], [data.matches.filter(m => m.status === 'scheduled').length, 'SCHEDULED'], [data.matches.filter(m => m.status === 'final').length, 'FINAL RESULTS']]) { const item = node('div', '', stats); node('strong', n, item); node('span', label, item); }
+    for (const [n, label] of [[data.teams.length, 'TEAMS'], [data.teams.reduce((n, t) => n + t.players.length, 0), 'PLAYERS'], [organizer ? data.teams.reduce((n, t) => n + (t.coaches || []).length, 0) : data.matches.filter(m => m.status === 'scheduled').length, organizer ? 'COACHES & STAFF' : 'SCHEDULED'], [data.matches.filter(m => m.status === 'final').length, 'FINAL RESULTS']]) { const item = node('div', '', stats); node('strong', n, item); node('span', label, item); }
     const tabs = node('div', '', shell, 'workspace-tabs tournament-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Tournament workspace');
-    for (const [id, title] of [['teams', 'Teams & players'], ['matches', 'Matches'], ['standings', 'Standings']]) {
+    for (const [id, title] of sections) {
       const tab = action(tabs, title, () => { section = id; rememberSection(); render(); shell.querySelector('[aria-selected=true]')?.focus(); }); tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(id === section));
       tab.id = 'tournament-' + id; tab.setAttribute('aria-controls', 'tournament-panel'); tab.tabIndex = id === section ? 0 : -1;
       tab.onkeydown = event => {
-        const keys = ['teams', 'matches', 'standings'];
+        const keys = sectionIds;
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault(); const i = keys.indexOf(id);
         section = keys[event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (i + (event.key === 'ArrowRight' ? 1 : -1) + 3) % 3];
@@ -263,11 +298,11 @@ export function mountTournament(app) {
       };
     }
     const panel = node('div', '', shell, 'tournament-panel'); panel.id = 'tournament-panel'; panel.setAttribute('role', 'tabpanel'); panel.setAttribute('aria-labelledby', 'tournament-' + section);
-    if (section === 'teams') renderTeams(panel); else if (section === 'matches') renderMatches(panel); else renderStandings(panel);
+    if (section === 'coaches' || section === 'players') renderDirectory(panel, section); else if (section === 'teams') renderTeams(panel); else if (section === 'matches') renderMatches(panel); else renderStandings(panel);
   }
   window.addEventListener('hashchange', () => {
     const tab = location.hash.slice(1);
-    if (['teams', 'matches', 'standings'].includes(tab) && tab !== section) { section = tab; render(); }
+    if (sectionIds.includes(tab) && tab !== section) { section = tab; render(); }
   });
   window.addEventListener('storage', event => {
     if (event.key === TOURNAMENT_KEY || event.key === KEY || event.key === null) {

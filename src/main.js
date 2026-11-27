@@ -5,8 +5,8 @@ import { initializeAppStorage, showStorageStartupError } from './app-storage.js'
 setupAppShell();
 async function mount() {
 await initializeAppStorage();
-if (new URLSearchParams(location.search).get('view') === 'tournament') {
-  const { mountTournament } = await import('./tournament-view.js'); mountTournament(document.getElementById('app'));
+if (new URLSearchParams(location.search).get('view') === 'tournament' || new URLSearchParams(location.search).get('view') === 'organizer') {
+  const { mountTournament } = await import('./tournament-view.js'); mountTournament(document.getElementById('app'), { organizer: new URLSearchParams(location.search).get('view') === 'organizer' });
 } else if (new URLSearchParams(location.search).get('view') === 'players') {
   const { mountPlayerStats } = await import('./player-stats-view.js'); mountPlayerStats(document.getElementById('app'));
 } else if (new URLSearchParams(location.search).get('view') === 'shots') {

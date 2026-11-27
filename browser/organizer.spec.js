@@ -1,0 +1,20 @@
+import { test, expect } from '@playwright/test';
+test('organizer manages teams, coaches and players with persistent shared directory', async ({ page }) => {
+  await page.goto('/?view=organizer');
+  await expect(page.getByRole('heading', {name:'Host Organizer',exact:true})).toBeVisible();
+  await page.getByRole('button', {name:'Add team',exact:true}).click();
+  await page.getByLabel('Team name',{exact:true}).fill('Falcons'); await page.getByRole('button',{name:'Save team',exact:true}).click();
+  await page.getByRole('tab',{name:'Coaches',exact:true}).click(); await page.getByRole('button',{name:'Add coach',exact:true}).click();
+  await page.getByLabel('Coach name',{exact:true}).fill('Alex Rivera'); await page.getByRole('button',{name:'Save coach',exact:true}).click();
+  await expect(page.locator('.directory-player')).toContainText('Alex Rivera');
+  await page.getByRole('button',{name:'Edit coach',exact:true}).click(); await page.getByLabel('Staff role').selectOption('Assistant coach');
+  await page.getByRole('button',{name:'Save coach',exact:true}).click(); await page.reload();
+  await expect(page.locator('.directory-player')).toContainText('Assistant coach');
+  await page.getByRole('tab',{name:'Players',exact:true}).click(); await page.getByRole('button',{name:'Add player',exact:true}).click();
+  await page.getByLabel('Player name',{exact:true}).fill('Jordan Lee'); await page.getByLabel('Jersey number',{exact:true}).fill('23');
+  await page.getByRole('button',{name:'Save player',exact:true}).click(); await expect(page.locator('.directory-player')).toContainText('Jordan Lee');
+  await page.getByLabel('Search name').fill('missing'); await expect(page.locator('.directory-player')).toHaveCount(0);
+  await page.goto('/?view=tournament'); await expect(page.locator('.directory-player')).toContainText('Jordan Lee');
+  await page.goto('/?view=organizer#coaches'); page.once('dialog', dialog => dialog.accept()); await page.getByRole('button',{name:'Remove coach',exact:true}).click();
+  await expect(page.locator('.directory-player')).toHaveCount(0);
+});

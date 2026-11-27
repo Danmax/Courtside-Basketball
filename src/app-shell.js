@@ -1,6 +1,6 @@
 export function setupAppShell() {
   const view = new URLSearchParams(location.search).get('view') || 'control';
-  const titles = { control: 'Game desk', tournament: 'Tournament', players: 'Player stats', shots: 'Shot tracker', referee: 'Official’s desk', scoreboard: 'Scoreboard', overlay: 'Broadcast overlay' };
+  const titles = { control: 'Game desk', organizer: 'Host Organizer', tournament: 'Tournament', players: 'Player stats', shots: 'Shot tracker', referee: 'Official’s desk', scoreboard: 'Scoreboard', overlay: 'Broadcast overlay' };
   document.title = 'Courtside — ' + (titles[view] || 'Game desk');
   const nav = document.querySelector('.primary-nav');
   const active = [...nav.querySelectorAll('[data-view]')].find(link => link.dataset.view === view);
