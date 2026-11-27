@@ -1,4 +1,7 @@
 import './style.css';
+import './ux.css';
+import { setupAppShell } from './app-shell.js';
+setupAppShell();
 if (new URLSearchParams(location.search).get('view') === 'tournament') {
   import('./tournament-view.js').then(({ mountTournament }) => mountTournament(document.getElementById('app')));
 } else if (new URLSearchParams(location.search).get('view') === 'players') {

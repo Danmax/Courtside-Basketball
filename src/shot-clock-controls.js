@@ -1,12 +1,14 @@
 import { node } from './ui.js';
 import { start, stop, startShotClock, stopShotClock, resetShotClock, setClock, parseClock, note } from './engine.js';
+import { clockActionLabel } from './live-toolbar.js';
 
-export function createShotClockControls(parent, { apply, toast, fail }) {
+export function createShotClockControls(parent, { apply, toast, fail, primaryHost = null }) {
   const element = node('section', '', parent, 'shot-clock-controls');
   element.setAttribute('aria-label', 'Game and shot-clock controls');
   let state = null;
   const game = node('div', '', element, 'shot-clock-group'); node('h2', 'Game clock', game);
   const gameActions = node('div', '', game, 'shot-clock-actions');
+  const primary = primaryHost || gameActions;
   function action(parent, label, fn, confirmation, className = '') {
     const button = node('button', label, parent, className); button.type = 'button';
     button.onclick = () => {
@@ -17,15 +19,16 @@ export function createShotClockControls(parent, { apply, toast, fail }) {
     };
     return button;
   }
-  const startGame = action(gameActions, 'Start game + shot', start, () => state.shotEnabled ? 'Game and shot clocks started.' : 'Game clock started.', 'primary');
-  action(gameActions, 'Stop both clocks', stop, 'Both clocks stopped.', 'stop-button');
+  const startGame = action(primary, 'Start game + shot', start, () => state.shotEnabled ? 'Game and shot clocks started.' : 'Game clock started.', 'primary');
+  const stopBoth = action(primary, 'Stop both clocks', stop, 'Both clocks stopped.', 'stop-button');
+  if (primaryHost) clockActionLabel(stopBoth, 'Stop both clocks', 'Stop');
   const editGame = node('button', 'Set game time…', gameActions); editGame.type = 'button';
   const shot = node('div', '', element, 'shot-clock-group'); node('h2', 'Shot clock', shot);
   const shotActions = node('div', '', shot, 'shot-clock-actions');
   const startShot = action(shotActions, 'Start shot only', startShotClock, 'Shot clock started.');
   const stopShot = action(shotActions, 'Stop shot only', stopShotClock, 'Shot clock stopped.');
   const resetShort = action(shotActions, 'Reset shot 14', next => resetShotClock(next, next.shotReset * 1000), () => `Shot clock reset to ${state.shotReset} seconds.`);
-  const resetDefault = action(shotActions, 'Reset shot 24', next => resetShotClock(next), () => `Shot clock reset to ${state.shotDefault} seconds.`);
+  const resetDefault = action(primaryHost || shotActions, 'Reset shot 24', next => resetShotClock(next), () => `Shot clock reset to ${state.shotDefault} seconds.`, 'toolbar-reset');
   const editShot = node('button', 'Set shot time…', shotActions); editShot.type = 'button';
   const footer = node('div', '', element, 'shot-clock-footer'), hint = node('p', '', footer);
   const endBreak = action(footer, 'End break', next => {
@@ -70,15 +73,17 @@ export function createShotClockControls(parent, { apply, toast, fail }) {
       state = next; element.hidden = archived || !state;
       if (element.hidden) { if (dialog.open) dialog.close(); return; }
       const unresolved = Object.values(state.teams).some(t => t.players.some(p => p.on && p.out));
-      startGame.textContent = state.shotEnabled ? 'Start game + shot' : 'Start game';
-      startGame.disabled = !!state.break || state.game <= 0 || unresolved;
-      startShot.disabled = !state.shotEnabled || startGame.disabled || state.violation || state.shot <= 0;
+      const startLabel = state.shotEnabled ? 'Start game + shot' : 'Start game';
+      if (primaryHost) clockActionLabel(startGame, startLabel, 'Start'); else startGame.textContent = startLabel;
+      const blocked = !!state.break || state.game <= 0 || unresolved;
+      startGame.disabled = blocked;
+      startShot.disabled = !state.shotEnabled || blocked || state.violation || state.shot <= 0;
       stopShot.disabled = !state.shotEnabled;
       editGame.disabled = state.running || state.shotRunning || !!state.break;
       editShot.disabled = editGame.disabled || !state.shotEnabled;
       resetShort.disabled = resetDefault.disabled = !!state.break || !state.shotEnabled; resetShort.hidden = state.shotDefault === state.shotReset;
       resetShort.textContent = 'Reset shot ' + state.shotReset;
-      resetDefault.textContent = 'Reset shot ' + state.shotDefault;
+      if (primaryHost) clockActionLabel(resetDefault, 'Reset shot ' + state.shotDefault, 'Reset ' + state.shotDefault); else resetDefault.textContent = 'Reset shot ' + state.shotDefault;
       endBreak.hidden = !state.break;
       hint.textContent = state.break ? `${state.break.label} · end the break, then restart manually.` : unresolved ? 'Fouled-out player on court. Remove or replace on the Game desk before restarting.' : state.game <= 0 ? 'Period ended. Set the time here, or advance the period on the Game desk.' : state.violation ? 'Shot violation · Start game + shot clears it and resets the shot clock.' : !state.shotEnabled ? 'Shot clock disabled in Game rules. Game time remains under official control.' : 'Start/stop clocks here. Time corrections require both clocks stopped.';
     },

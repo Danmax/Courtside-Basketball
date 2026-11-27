@@ -8,7 +8,8 @@ import { TOURNAMENT_KEY, MAX_TOURNAMENT_BYTES, readTournament, writeTournament, 
 export function mountTournament(app) {
   document.body.className = 'tournament';
   document.getElementById('break').hidden = true;
-  let data = initialTournament(), section = location.hash === '#matches' ? 'matches' : 'teams', filter = 'all';
+  let data = initialTournament(), section = ['teams', 'matches', 'standings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'teams', filter = 'all';
+  function rememberSection() { const url = new URL(location.href); url.hash = section; history.replaceState(null, '', url); }
   const notice = node('p', '', app, 'tournament-notice'); notice.setAttribute('role', 'status');
   const shell = node('div', '', app), dialog = node('dialog', '', app);
   const notify = message => { notice.textContent = message; };
@@ -248,19 +249,24 @@ export function mountTournament(app) {
     for (const [n, label] of [[data.teams.length, 'TEAMS'], [data.teams.reduce((n, t) => n + t.players.length, 0), 'PLAYERS'], [data.matches.filter(m => m.status === 'scheduled').length, 'SCHEDULED'], [data.matches.filter(m => m.status === 'final').length, 'FINAL RESULTS']]) { const item = node('div', '', stats); node('strong', n, item); node('span', label, item); }
     const tabs = node('div', '', shell, 'workspace-tabs tournament-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Tournament workspace');
     for (const [id, title] of [['teams', 'Teams & players'], ['matches', 'Matches'], ['standings', 'Standings']]) {
-      const tab = action(tabs, title, () => { section = id; render(); shell.querySelector('[aria-selected=true]')?.focus(); }); tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(id === section));
+      const tab = action(tabs, title, () => { section = id; rememberSection(); render(); shell.querySelector('[aria-selected=true]')?.focus(); }); tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(id === section));
       tab.id = 'tournament-' + id; tab.setAttribute('aria-controls', 'tournament-panel'); tab.tabIndex = id === section ? 0 : -1;
       tab.onkeydown = event => {
         const keys = ['teams', 'matches', 'standings'];
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault(); const i = keys.indexOf(id);
         section = keys[event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (i + (event.key === 'ArrowRight' ? 1 : -1) + 3) % 3];
+        rememberSection();
         render(); shell.querySelector('[aria-selected=true]')?.focus();
       };
     }
     const panel = node('div', '', shell, 'tournament-panel'); panel.id = 'tournament-panel'; panel.setAttribute('role', 'tabpanel'); panel.setAttribute('aria-labelledby', 'tournament-' + section);
     if (section === 'teams') renderTeams(panel); else if (section === 'matches') renderMatches(panel); else renderStandings(panel);
   }
+  window.addEventListener('hashchange', () => {
+    const tab = location.hash.slice(1);
+    if (['teams', 'matches', 'standings'].includes(tab) && tab !== section) { section = tab; render(); }
+  });
   window.addEventListener('storage', event => {
     if (event.key === TOURNAMENT_KEY || event.key === KEY || event.key === null) {
       try { data = readTournament(localStorage); if (!dialog.open) render(); } catch (error) { notify(error.message); }

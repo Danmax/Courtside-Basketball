@@ -1,0 +1,141 @@
+/* Shared navigation and interaction polish. Broadcast geometry stays in style.css. */
+.skip-link{position:fixed;top:8px;left:12px;z-index:110;padding:12px 16px;background:var(--orange);color:#20150e;border-radius:7px;transform:translateY(-180%);font-weight:700}
+.skip-link:focus{transform:none}
+#app:focus{outline:none}
+.app-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:24px;height:80px}
+.app-header .primary-nav{justify-content:flex-end;align-items:center;flex-wrap:nowrap;gap:6px;min-width:0;width:auto;overflow-x:auto;scrollbar-width:none}
+.primary-nav::-webkit-scrollbar{display:none}
+.app-header .primary-nav a{position:relative;display:flex;align-items:center;justify-content:center;min-height:44px;flex-shrink:0;padding:10px 14px;font-size:14px;border-radius:7px;color:#b9c4d3;white-space:nowrap}
+.app-header .primary-nav a[aria-current=page]{background:#ff8c5317;color:#ffb88f}
+.primary-nav a[aria-current=page]:after{content:'';position:absolute;bottom:3px;left:14px;right:14px;height:2px;background:var(--orange);border-radius:2px}
+.display-menu{position:relative}
+.display-menu>summary{display:flex;align-items:center;gap:12px;min-height:44px;padding:10px 14px;font-size:14px;border:1px solid var(--border);border-radius:7px;list-style:none}
+.display-menu>summary::-webkit-details-marker{display:none}
+.display-menu>summary:after{content:'';width:6px;height:6px;border-right:1px solid var(--muted);border-bottom:1px solid var(--muted);transform:rotate(45deg);margin-top:-3px}
+.display-menu[open]>summary{border-color:#8b654a;background:#29241f}
+.display-menu-panel{position:absolute;top:calc(100% + 10px);right:0;z-index:90;display:grid;width:235px;padding:8px;border:1px solid #4c5665;border-radius:10px;background:#1c232d;box-shadow:0 12px 50px #0009}
+.display-menu:not([open]) .display-menu-panel{display:none}
+.display-menu-panel>span{padding:10px;font-size:12px;color:var(--muted)}
+.display-menu-panel>a{padding:12px;min-height:44px;font-size:14px;border-radius:6px}
+.display-menu-panel>a:hover,.display-menu-panel>a:focus-visible{background:#303c4b;color:var(--text)}
+
+.live-toolbar{position:sticky;top:8px;z-index:35;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:18px;padding:12px 14px;border:1px solid #3b4655;border-left:3px solid #8392a7;border-radius:10px;background:#1a222df7;box-shadow:0 8px 24px #0003;backdrop-filter:blur(12px);scroll-margin-top:16px}
+.live-toolbar[data-phase=live]{border-left-color:var(--green)}
+.live-toolbar[data-phase=blocked]{border-left-color:#ff8998}
+.live-toolbar[data-phase=break]{border-left-color:var(--orange)}
+.toolbar-controls,.toolbar-actions{display:flex;align-items:center;gap:8px;min-width:0}
+.toolbar-actions button{min-height:44px;font-size:13px;padding:9px 12px;white-space:nowrap}
+.toolbar-reset{color:#b9dcfa;background:#203142;border-color:#3c5872}
+.toolbar-tools{display:flex;align-items:center;justify-content:center;min-height:44px;font-size:13px;color:#bdcadb;text-decoration:underline;text-underline-offset:4px;padding:6px}
+.toolbar-scorebar{display:grid;grid-template-columns:minmax(0,1fr) 145px minmax(0,1fr);align-items:center;gap:14px;min-width:0;max-width:630px}
+.toolbar-scorebar>div:not(.shot-clock-status){display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;color:var(--team)}
+.toolbar-scorebar>div>span{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e1e7f0}
+.toolbar-scorebar>div>strong{font-size:27px;flex-shrink:0}
+.toolbar-scorebar .shot-clock-status{display:flex;flex-direction:column;align-items:center;gap:0;text-align:center}
+.toolbar-scorebar .shot-clock-status>span{font-size:16px!important;letter-spacing:0!important;white-space:nowrap;grid-column:1/-1;text-align:center}
+.toolbar-scorebar .shot-clock-status>strong{font-size:12px!important;letter-spacing:0!important;white-space:nowrap}
+.toolbar-scorebar .shot-clock-status>small{font-size:9px;letter-spacing:0;color:var(--muted);text-align:right}
+.toolbar-hint{grid-column:1/-1;color:#ffd0a8;font-size:12px;line-height:1.5;border-top:1px solid #435061;padding-top:9px}
+.toolbar-hint a{display:inline-block;padding:6px 0;margin-left:12px;color:#ffbf99;text-decoration:underline;text-underline-offset:3px}
+.live-toolbar .shot-scorebar{margin:0;border:0;border-radius:0;background:transparent;grid-template-columns:minmax(0,1fr) 150px minmax(0,1fr)}
+.live-toolbar .shot-scorebar>div{padding:4px 12px;border-top:0;gap:10px;flex-direction:row;min-width:0}
+.live-toolbar .shot-scorebar>div>span{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live-toolbar .shot-scorebar>div>strong{font-size:28px;letter-spacing:0;flex-shrink:0}
+.live-toolbar .shot-scorebar>.shot-clock-status{flex-direction:column;background:transparent;gap:2px;padding:2px 8px}
+.live-toolbar .shot-clock-status>span{font-size:14px!important;letter-spacing:0!important}
+.live-toolbar .shot-clock-status>small{font-size:10px;letter-spacing:0;line-height:1.35;color:#aab8ca}
+.live-toolbar.is-archived{grid-template-columns:1fr;position:static;box-shadow:none}
+.clock-label-compact{display:none}
+#clock-tools{scroll-margin-top:180px}
+#clock-tools:focus-visible{outline:2px solid var(--orange);outline-offset:4px}
+.control .board,.referee .board{min-height:150px}
+.control .score-team,.referee .score-team{padding-top:18px;padding-bottom:18px}
+.control .secondary-actions button,.referee .secondary-actions button{min-height:36px;font-size:12px;padding:6px 9px}
+.control-group h2{font-size:12px}
+.workspace-tabs button{font-size:14px;min-height:46px}
+.backup-actions button{min-height:38px;font-size:12px}
+.game-intro-actions{display:flex;align-items:center;gap:20px}
+.game-intro-actions button{min-height:44px;font-size:13px}
+.inline-help{margin-top:12px;border-top:1px solid var(--border);padding-top:8px;color:var(--muted)}
+.inline-help summary{font-size:13px;min-height:36px;display:list-item;align-content:center}
+.inline-help p{font-size:13px;line-height:1.75;padding:7px 0 3px}
+.shot-current-shooter{font-size:14px;line-height:1.6;border-left:3px solid var(--team);padding:8px 12px;background:#111923;border-radius:4px;margin:12px 0 6px;overflow-wrap:anywhere}
+.shot-selection{font-size:13px;line-height:1.6}
+.shot-clear{min-height:36px;font-size:12px}
+.shot-source-toolbar label{font-size:13px}
+.shot-source-toolbar select{font-size:14px;min-height:42px}
+.shot-team-pick>span{font-size:14px}
+.shot-picker-title,.shot-bench-picker summary{font-size:12px}
+.shot-player-pick>span{font-size:12px}
+.shot-player-pick>small{font-size:10px}
+.shot-other-stats h3{font-size:14px}
+.shot-other-stats>.muted{font-size:12px}
+.shot-stat-actions span{font-size:11px}
+.shot-stat-actions button{min-height:48px}
+.shot-clock-actions button{min-height:42px;font-size:12px}
+.shot-clock-footer p{font-size:12px}
+.court-help{font-size:13px;line-height:1.6}
+.action-notice[role=status]{position:fixed;top:max(16px,env(safe-area-inset-top));right:16px;z-index:80;max-width:min(430px,calc(100vw - 32px));width:max-content;margin:0;padding:14px 18px;border:1px solid #845666;border-left:3px solid #ff9aab;border-radius:9px;background:#35232df7;color:#ffd4dc;box-shadow:0 8px 32px #0006;font-size:14px;line-height:1.6;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s ease;overflow-wrap:anywhere}
+.action-notice.is-visible{opacity:1;visibility:visible}
+.action-notice[data-kind=success]{border-color:#557d65;border-left-color:var(--green);background:#1f3229f7;color:#d1f1de}
+.players:not(.player-presentation) .fact-card>p{font-size:13px;line-height:1.65}
+.players:not(.player-presentation) .fact-card>.eyebrow{font-size:11px;letter-spacing:1px}
+.players:not(.player-presentation) .facts-note,.players:not(.player-presentation) .stats-method{font-size:13px;line-height:1.7}
+.tournament .empty-state{border:1px dashed #455263;border-radius:10px;padding:24px;text-align:left;font-size:14px;line-height:1.7;background:#18212b66;margin-top:18px}
+.tournament-help{font-size:14px;line-height:1.7}
+.tournament .tournament-tools button,.tournament .tournament-section-top button{font-size:13px;min-height:44px}
+
+@media(max-width:1150px){
+  .app-header{gap:12px;padding-left:24px;padding-right:24px}
+  .app-header .brand-sub{display:none}
+  .app-header .primary-nav a{padding:10px;font-size:13px}
+  .live-toolbar{grid-template-columns:1fr;gap:9px}
+  .toolbar-scorebar{max-width:none}
+  .toolbar-controls{justify-content:space-between}
+}
+@media(max-width:760px){
+  .app-header{height:auto;min-height:0;grid-template-columns:1fr auto;gap:6px 12px;padding:12px 16px 0}
+  .app-header .brand{font-size:16px}
+  .app-header .primary-nav{grid-row:2;grid-column:1/-1;width:100%;justify-content:flex-start;gap:3px;padding:4px 0 7px}
+  .app-header .primary-nav a{padding:10px 12px;font-size:13px}
+  .display-menu>summary{font-size:13px;padding:8px 12px}
+  .page-intro h1{font-size:26px}
+  .shots .page-intro{margin-bottom:14px}
+  .shots .page-intro h1{font-size:25px}
+  .live-toolbar{top:6px;margin-bottom:14px;padding:9px 10px;gap:8px;border-radius:9px}
+  .toolbar-scorebar{grid-template-columns:minmax(0,1fr) 115px minmax(0,1fr);gap:8px}
+  .toolbar-scorebar>div>span{font-size:12px}
+  .toolbar-scorebar>div>strong{font-size:23px}
+  .toolbar-scorebar .shot-clock-status>span{font-size:14px!important}
+  .toolbar-scorebar .shot-clock-status{display:flex;flex-direction:column;gap:0}
+  .toolbar-scorebar .shot-clock-status>strong{font-size:12px!important}
+  .toolbar-scorebar .shot-clock-status>small{font-size:9px}
+  .toolbar-controls,.toolbar-actions{gap:6px}
+  .toolbar-actions button{min-width:52px;padding:8px;font-size:14px}
+  .toolbar-tools{font-size:13px;min-width:40px;padding:5px}
+  .clock-label-full{display:none}
+  .clock-label-compact{display:inline}
+  .live-toolbar .shot-scorebar{grid-template-columns:minmax(0,1fr) 120px minmax(0,1fr)}
+  .live-toolbar .shot-scorebar>div{padding:2px 5px;gap:5px}
+  .live-toolbar .shot-scorebar>div>span{font-size:13px}
+  .live-toolbar .shot-scorebar>div>strong{font-size:23px}
+  .live-toolbar .shot-scorebar>.shot-clock-status{padding:0 5px;gap:1px}
+  .live-toolbar .shot-clock-status>small{font-size:9px}
+  .toolbar-hint{font-size:12px}
+  .shot-team-pick{min-height:44px}
+  .shot-team-pick>span{font-size:14px}
+  .shot-player-pick>span{font-size:11px}
+  .shot-player-pick>small{font-size:10px}
+  .shot-picker-title,.shot-bench-picker summary{font-size:12px}
+  .shot-other-stats h3{font-size:14px}
+  .shot-stat-actions span{font-size:11px}
+  .shot-stat-actions button{min-height:54px}
+  .shot-source-toolbar select{font-size:13px;min-height:40px}
+  .shot-source-toolbar label{font-size:12px}
+  .shot-court{scroll-margin-top:180px}
+  .shot-attempt-list li{scroll-margin-top:180px}
+  .tournament input,.tournament select,.players input,.players select,.shots select,dialog input,dialog select{font-size:16px}
+}
+@media print{.live-toolbar,.skip-link,.action-notice{display:none!important}}
+.scoreboard .skip-link,.overlay .skip-link,.player-presentation .skip-link{display:none}
+@media(prefers-reduced-motion:reduce){.skip-link,.action-notice{transition:none}}

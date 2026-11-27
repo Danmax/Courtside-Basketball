@@ -12,6 +12,7 @@ import { readTournament } from './tournament-storage.js';
 import { node, initials, minutes, confirmChange, confirmingChange } from './ui.js';
 import { renderTeams } from './teams-view.js';
 import { boxScore, renderReports, csvReport } from './reports.js';
+import { createLiveToolbar, clockActionLabel } from './live-toolbar.js';
 
 const $ = id => document.getElementById(id);
 const view = new URLSearchParams(location.search).get('view') || 'control';
@@ -26,8 +27,7 @@ let s;
 try { s = load(); } catch (error) { s = initial(); storageError = error.message; }
 function reportStorageError(error) {
   storageError = error.message;
-  status.hidden = false;
-  status.textContent = storageError + ' Changes have not been saved.';
+  setFeedback(storageError + ' Changes have not been saved.');
 }
 async function act(fn, expectedGameId = s.gameId) {
   if (readonly) return false;
@@ -40,14 +40,14 @@ async function act(fn, expectedGameId = s.gameId) {
     const result = await fn(next);
     if (result === false) {
       lastActionError = 'Change unavailable. Stop both clocks and check player eligibility or entered values.';
-      status.textContent = lastActionError;
+      setFeedback(lastActionError);
       render(true);
       return false;
     }
     writeGame(localStorage, next, expectedRaw);
     s = next;
     storageError = ''; storageReadFailure = false;
-    status.textContent = '';
+    setFeedback('');
     render(true);
     return true;
   } catch (error) { lastActionError = error.message; reportStorageError(error); return false; }
@@ -72,14 +72,17 @@ function field(parent, label, value, fn, type = 'text') {
   return i;
 }
 
-let workspace = 'live', leaderMetric = 'pts';
+let workspace = ['live', 'roster', 'reports', 'journal'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'live', leaderMetric = 'pts';
 const app = $('app');
+let rulesActions = null;
 if (!readonly) {
   const intro = node('div', '', app, 'page-intro');
   const title = node('div', '', intro);
   node('span', 'MATCH OPERATIONS', title, 'eyebrow');
   node('h1', view === 'referee' ? 'Official’s desk' : 'Game desk', title);
-  node('span', 'LOCAL GAME · MANUAL CONTROL', intro, 'local-label');
+  const introActions = node('div', '', intro, 'game-intro-actions');
+  node('span', 'LOCAL GAME · MANUAL CONTROL', introActions, 'local-label');
+  rulesActions = node('div', '', introActions);
 }
 const board = node('section', '', app, 'board');
 board.setAttribute('aria-label', 'Live scoreboard');
@@ -102,11 +105,22 @@ breakControls.hidden = true;
 node('span', '', breakControls).id = 'controlBreakLabel';
 breakControls.append($('endBreak'));
 board.after(breakControls);
-const status = node('p', '', app);
+const status = node('p', '', app, 'action-notice');
 status.setAttribute('role', 'status'); status.hidden = readonly && !storageError;
-if (storageError) status.textContent = 'Storage error: ' + storageError;
+status.setAttribute('aria-atomic', 'true');
+let feedbackTimer;
+function setFeedback(message, success = false) {
+  clearTimeout(feedbackTimer); status.textContent = message; status.hidden = readonly && !message;
+  status.dataset.kind = success ? 'success' : 'error'; status.classList.toggle('is-visible', !!message);
+  if (message && success) feedbackTimer = setTimeout(() => {
+    status.classList.remove('is-visible'); feedbackTimer = setTimeout(() => { status.textContent = ''; }, 250);
+  }, 3500);
+}
+if (storageError) setFeedback('Storage error: ' + storageError);
 const matchContext = node('div', '', app, 'match-context'); matchContext.hidden = true;
+const liveToolbar = readonly ? null : createLiveToolbar(app);
 const controls = node('section', '', app, 'clock-controls'), detail = node('section', '', app, 'workspace');
+controls.id = 'clock-tools'; controls.tabIndex = -1;
 controls.hidden = detail.hidden = readonly;
 const broadcastDetail = node('section', '', app, 'broadcast-detail');
 broadcastDetail.hidden = view !== 'scoreboard';
@@ -184,7 +198,7 @@ function rulesEditor(triggerId) {
         if (JSON.stringify(gameRules(next)) !== original) throw new Error('Game rules changed in another tab. Close this dialog and review them again.');
         return applyGameRules(next, rules);
       });
-      if (applied) status.textContent = 'Game rules saved. Both clocks remain stopped.';
+      if (applied) setFeedback('Game rules saved. Both clocks remain stopped.', true);
       return applied;
     };
   });
@@ -194,7 +208,7 @@ function dialogButton(parent, label, id, handler, disabled = false) {
   const gameId = s.gameId;
   const b = node('button', label, parent);
   b.type = 'button'; b.id = id; b.disabled = disabled; b.onclick = () => {
-    if (s.gameId !== gameId) { render(true); status.textContent = 'The game changed. Review the current game before trying again.'; return; }
+    if (s.gameId !== gameId) { render(true); setFeedback('The game changed. Review the current game before trying again.'); return; }
     handler(id);
   };
   return b;
@@ -217,7 +231,7 @@ function exportBackup() {
       recovery = true;
     }
     download(json, recovery ? 'basketball-recovery.json' : 'basketball-game.json');
-    status.textContent = recovery ? 'Stored data downloaded for recovery. It is not a validated game backup.' : 'Game backup downloaded. The live game was not changed.';
+    setFeedback(recovery ? 'Stored data downloaded for recovery. It is not a validated game backup.' : 'Game backup downloaded. The live game was not changed.', !recovery);
   } catch (error) { reportStorageError(error); }
 }
 function importDialog(triggerId) {
@@ -254,7 +268,7 @@ function importDialog(triggerId) {
         const imported = importGame(pending);
         if (!await confirmChange('Replace the current game with the backup shown above? Current scores, roster and play-by-play will be replaced.')) return false;
         writeGame(localStorage, imported, expectedRaw);
-        s = imported; storageError = ''; storageReadFailure = false; status.textContent = 'Game imported. Both clocks are stopped.';
+        s = imported; storageError = ''; storageReadFailure = false; setFeedback('Game imported. Both clocks are stopped.', true);
         render(true);
         return true;
       } catch (error) { preview.textContent = error.message; return false; }
@@ -264,12 +278,17 @@ function importDialog(triggerId) {
 
 function renderControls() {
   controls.replaceChildren();
+  liveToolbar.actions.replaceChildren();
+  rulesActions.replaceChildren();
   const moving = s.running || s.shotRunning;
   const game = node('div', '', controls, 'control-group game-controls');
   node('h2', 'Game clock', game);
-  const main = node('div', '', game, 'primary-actions');
-  button(main, s.shotEnabled ? 'Start game + shot' : 'Start game', start).className = 'primary';
-  button(main, 'Stop both clocks', stop).className = 'stop-button';
+  const main = liveToolbar.actions;
+  const blocked = !!s.break || s.game <= 0 || Object.values(s.teams).some(team => team.players.some(player => player.on && player.out));
+  const startLabel = s.shotEnabled ? 'Start game + shot' : 'Start game';
+  const startButton = button(main, startLabel, start, blocked); startButton.className = 'primary'; clockActionLabel(startButton, startLabel, 'Start');
+  const stopButton = button(main, 'Stop both clocks', stop); stopButton.className = 'stop-button'; clockActionLabel(stopButton, 'Stop both clocks', 'Stop');
+  const resetButton = button(main, 'Reset shot ' + s.shotDefault, x => resetShotClock(x), !!s.break || !s.shotEnabled); resetButton.className = 'toolbar-reset'; clockActionLabel(resetButton, 'Reset shot ' + s.shotDefault, 'Reset ' + s.shotDefault);
   const adjustments = node('div', '', game, 'secondary-actions');
   for (const n of [-5, -1, 1, 5, 60]) button(adjustments, `${n > 0 ? '+' : ''}${n}s game`, x => setClock(x, 'game', Math.max(0, x.game + n * 1000)), moving || !!s.break);
   dialogButton(adjustments, 'Set game time…', 'setGame', id => clockEditor('game', id), moving || !!s.break);
@@ -278,14 +297,14 @@ function renderControls() {
   const shotActions = node('div', '', shot, 'primary-actions');
   button(shotActions, 'Start shot only', startShotClock, !s.shotEnabled); button(shotActions, 'Stop shot only', stopShotClock, !s.shotEnabled);
   const resets = node('div', '', shot, 'secondary-actions');
-  for (const n of new Set([s.shotReset, s.shotDefault])) button(resets, 'Reset shot ' + n, x => resetShotClock(x, n * 1000), !!s.break || !s.shotEnabled);
+  if (s.shotReset !== s.shotDefault) button(resets, 'Reset shot ' + s.shotReset, x => resetShotClock(x, x.shotReset * 1000), !!s.break || !s.shotEnabled);
   dialogButton(resets, 'Set shot time…', 'setShot', id => clockEditor('shot', id), moving || !!s.break || !s.shotEnabled);
   const match = node('div', '', controls, 'control-group match-controls');
   node('h2', 'Game management', match);
   button(match, 'Possession', x => possession(x, x.possession === 'A' ? 'B' : 'A'));
   button(match, 'Next period', nextPeriod, s.quarter >= s.periods || !!s.break);
   button(match, 'Halftime', x => beginBreak(x, 'HALFTIME', x.halftime * 60, Date.now()), s.halftime === 0 || !!s.break);
-  dialogButton(match, 'Game rules…', 'editRules', rulesEditor, moving || !!s.break).className = 'rules-button';
+  dialogButton(rulesActions, 'Game rules…', 'editRules', rulesEditor, moving || !!s.break).className = 'rules-button';
   const settings = node('details', '', match, 'game-settings'); node('summary', 'Game settings & reset', settings);
   const halftime = field(settings, 'Halftime minutes', s.halftime, (x, v) => {
     const minutes = Number(v);
@@ -298,7 +317,7 @@ function renderControls() {
   }).className = 'text-danger';
   node('p', gameRulesSummary(s), match, 'game-rules-summary');
 }
-function setWorkspace(value) { workspace = value; render(true); }
+function setWorkspace(value) { workspace = value; const url = new URL(location.href); url.hash = value; history.replaceState(null, '', url); render(true); }
 function renderWorkspace(display) {
   detail.replaceChildren();
   const toolbar = node('div', '', detail, 'workspace-toolbar');
@@ -351,6 +370,7 @@ function renderWorkspace(display) {
 function render(full = false) {
   const display = structuredClone(s);
   tick(display, Date.now());
+  liveToolbar?.render(display);
   for (const k of ['A', 'B']) {
     const t = display.teams[k];
     $(k + 'Title').textContent = t.name;
@@ -419,11 +439,15 @@ $('endBreak').onclick = () => act(x => {
   if (x.break) note(x, x.break.label + ' ended early');
   stop(x); x.break = null;
 });
+window.addEventListener('hashchange', () => {
+  const tab = location.hash.slice(1);
+  if (!readonly && view !== 'referee' && ['live', 'roster', 'reports', 'journal'].includes(tab) && tab !== workspace) { workspace = tab; render(true); }
+});
 window.addEventListener('storage', e => {
   if (e.key === KEY || e.key === null) {
     try {
       s = load();
-      if (storageReadFailure) { storageReadFailure = false; storageError = ''; status.textContent = ''; status.hidden = readonly; }
+      if (storageReadFailure) { storageReadFailure = false; storageError = ''; setFeedback(''); }
       render(!document.activeElement.matches('input'));
     }
     catch (error) { reportStorageError(error); }

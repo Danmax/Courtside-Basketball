@@ -77,7 +77,7 @@ test('foul-out without bench and reset preserving roster', async ({ page }) => {
   let row = page.locator('article').first().locator('.player').first();
   for (let i = 0; i < 5; i++) await row.getByRole('button', { name: 'Add foul for #1 Player A1', exact: true }).click();
   await expect(row).toContainText('FOULED OUT');
-  await click(page, 'Start game + shot');
+  await expect(page.getByRole('button', { name: 'Start game + shot', exact: true })).toBeDisabled();
   expect((await state(page)).running).toBe(false);
   await row.getByRole('button', { name: 'Substitute…', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('No eligible bench players');

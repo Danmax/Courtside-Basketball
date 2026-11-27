@@ -7,11 +7,13 @@
   <title>Courtside — Game Desk</title>
 </head>
 <body>
+  <a class="skip-link" href="#app">Skip to main content</a>
   <header class="app-header">
     <a class="brand" href="/" aria-label="Courtside home"><span class="brand-ball" aria-hidden="true"></span>COURTSIDE<span class="brand-sub">GAME DESK</span></a>
-    <nav aria-label="Display views"><a href="/">Controller</a><a href="/?view=tournament">Tournament</a><a href="/?view=players">Player Stats</a><a href="/?view=shots">Shot tracker</a><a href="/?view=scoreboard" target="_blank" rel="noopener">Scoreboard ↗</a><a href="/?view=overlay" target="_blank" rel="noopener">Broadcast ↗</a><a href="/?view=referee">Referee</a></nav>
+    <nav class="primary-nav" aria-label="Main navigation"><a href="/" data-view="control">Controller</a><a href="/?view=tournament" data-view="tournament">Tournament</a><a href="/?view=players" data-view="players">Player Stats</a><a href="/?view=shots" data-view="shots">Shot tracker</a><a href="/?view=referee" data-view="referee">Referee</a></nav>
+    <details class="display-menu"><summary>Displays</summary><div class="display-menu-panel"><span>Open in a new tab</span><a href="/?view=scoreboard" target="_blank" rel="noopener">Scoreboard</a><a href="/?view=overlay" target="_blank" rel="noopener">Broadcast overlay</a><a href="/?view=players&amp;display=1" target="_blank" rel="noopener">Player board</a></div></details>
   </header>
-  <main id="app"></main>
+  <main id="app" tabindex="-1"></main>
   <div id="break" hidden><span class="eyebrow">OFFICIAL BREAK</span><h2 id="breakLabel"></h2><div id="breakTime"></div><button id="endBreak">End break</button><p>Play resumes on the official’s signal.</p></div>
   <script type="module" src="/src/main.js"></script>
 </body>

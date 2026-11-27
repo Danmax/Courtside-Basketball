@@ -77,6 +77,12 @@ The controller uses a color-coded home/away score strip, grouped game/shot-clock
 - **Reports** includes current-game leaders ranked by points, rebounds, assists, steals or blocks, team comparison bars, and full-roster box scores. Minutes are cumulative player time in minutes:seconds. **Download CSV** exports the box score; **Print report** opens the browser's print/save-to-PDF flow. The report shows official team score separately from player points so unassigned scoring and score corrections are visible. Shooting percentages use recorded attempts only; per-period scoring and historical averages are not inferred from journal text.
 - **Play-by-play** shows the game journal and accepts official notes.
 
+Navigation highlights the current page. On phones, the page links stay in one horizontally scrollable row; **Displays** groups the scoreboard, broadcast overlay and player board, opening each in a new tab. Keyboard users can use **Skip to main content**, and Escape closes the display menu and restores focus.
+
+The Game desk, Official’s desk and Shot Tracker have a sticky live clock bar with current scores, game/shot time, **Start**, **Stop** and the configured full shot reset. **Clock tools** jumps to exact time entry, short resets and other clock controls. Phone labels are shortened while retaining their full accessible names. Blocked restarts explain the reason; a foul-out notice links directly to the **Roster** tab. All actions retain the engine’s official-control safeguards. Archived shot charts hide the editing actions, and broadcast/presentation views stay read-only.
+
+Game-desk and tournament workspace tabs are reflected in the URL fragment, so reloads, direct links and returning to a page retain that section. This navigation does not change saved game or tournament data. Controller success messages use floating toasts that fade after 3.5 seconds without moving controls; errors remain visible until resolved or replaced. Shot capture displays the selected player and team above its result buttons, with court/keyboard and scoring instructions under expandable help.
+
 Use the **Team score** menu only for unassigned scoring or corrections; player-row scoring also credits the player's total. Team timeouts are in the adjacent **Timeout** menu. Halftime length and roster-preserving reset are under **Game settings & reset**. Export/import controls stay available above the workspace tabs.
 
 Timeout and halftime countdowns appear in a banner below the full-screen scoreboard, with scores and on-court stats still visible. The controller and referee keep their normal controls available, with a compact break notice and **End break** button. The broadcast overlay stays a score ribbon. Ending or expiring a break never restarts play automatically. Active break countdowns are projected from their end timestamp without repeatedly rewriting storage; expiration is persisted.
@@ -85,7 +91,7 @@ The full-screen scoreboard includes read-only on-court stat tables; the broadcas
 
 ## Game rules setup
 
-On the **Game desk** or **Official’s desk**, choose **Game rules…** under **Game management**. Stop both clocks and end an active break before saving. The form provides:
+On the **Game desk** or **Official’s desk**, choose **Game rules…** beside the page title. Stop both clocks and end an active break before saving. The form provides:
 
 - **Game format:** number of periods, period length as `minutes:seconds`, and halftime minutes. Setting halftime to 0 disables its break button. Four periods display as quarters, two as halves, and other counts as periods.
 - **Clocks:** enable/disable the shot clock, set its full duration and shorter manual reset, and choose continuous timing or stopping both clocks after a score. This scoring policy applies to player point buttons, unassigned team points and made court shots; misses and negative score corrections do not stop play. Free-throw capture still requires both clocks stopped. With the shot clock disabled, displays show **OFF**, its controls are unavailable, and starting the game runs only game time. Possession still resets the stored shot value.
@@ -134,6 +140,8 @@ Coverage includes roster forms and validation, substitution and focus return, st
 Review regressions cover stale roster/clock dialogs and team-name fields after game replacement, changes during reset/import/match confirmations, tournament form conflicts, exact elapsed-time projection without recurring writes, one-time expiry persistence, invalid settings, shot-log focus/scroll retention, and broadcast warning recovery.
 
 Game-rule checks cover opening versus midgame setup, clock/score behavior, disabled shot clocks, custom resets, foul-limit changes and permanent foul-outs, team-foul reset policies, timeout budgets/durations, periods containing shot history, backup compatibility, tournament rule snapshots, stale rule forms, failed saves and phone form bounds/focus.
+
+UX checks cover active navigation at phone/desktop sizes, display-menu keyboard behavior, skip links, workspace URL state, sticky clock actions, custom full resets, keyboard focus, navigation to blocked lineups, and controller feedback that preserves layout and saved data.
 
 ## Backlog
 

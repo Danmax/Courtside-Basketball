@@ -7,13 +7,13 @@ import { drawCourt } from './shot-court.js';
 import { fieldGoalValue } from './court-geometry.js';
 import { createShotClockControls } from './shot-clock-controls.js';
 import { periodLabel } from './game-rules.js';
+import { createLiveToolbar } from './live-toolbar.js';
 
 export function mountShots(app) {
   document.body.className = 'shots'; document.title = 'Courtside — Shot tracker'; document.getElementById('break').hidden = true;
   let currentError = '';
   let game = null, tournament = null, source = 'current', team = 'A', playerId = '', value = 2, pending = null, cursor = { x: .5, y: .5 };
-  const intro = node('div', '', app, 'page-intro'); const title = node('div', '', intro); node('span', 'SHOT-BY-SHOT TRACKING', title, 'eyebrow'); node('h1', 'Map every attempt.', title);
-  const links = node('div', '', intro, 'shot-page-links'); for (const [label, href] of [['Game desk ↗', '/'], ['Player stats ↗', '/?view=players']]) { const a = node('a', label, links, 'button-link'); a.href = href; }
+  const intro = node('div', '', app, 'page-intro'); const title = node('div', '', intro); node('span', 'LIVE CAPTURE', title, 'eyebrow'); node('h1', 'Shot tracker', title);
   const error = node('p', '', app, 'shot-error'); error.setAttribute('role', 'alert'); error.hidden = true;
   const message = node('p', '', app, 'shot-message'); message.setAttribute('role', 'status'); message.setAttribute('aria-atomic', 'true');
   let toastDismissTimer, toastClearTimer;
@@ -27,7 +27,7 @@ export function mountShots(app) {
     message.textContent = text; message.classList.add('is-visible');
     toastDismissTimer = setTimeout(hideToast, 3500);
   }
-  const scorebar = node('section', '', app, 'shot-scorebar'); scorebar.setAttribute('aria-label', 'Shot tracker scoreboard');
+  const toolbar = createLiveToolbar(app, { shots: true });
   const selectors = node('section', '', app, 'shot-selectors shot-source-toolbar'); selectors.setAttribute('aria-label', 'Shot chart source and focus');
   function select(label, id, options) {
     const wrap = node('label', label, selectors), input = node('select', '', wrap); input.id = id; input.setAttribute('aria-label', label);
@@ -38,7 +38,7 @@ export function mountShots(app) {
     input.dataset.choices = signature; input.replaceChildren(); for (const [value, text] of choices) { const option = node('option', text, input); option.value = value; }
   }
   const sourceInput = select('Game source', 'shot-source', [['current', 'Current game']]);
-  const chartInput = select('Chart focus', 'shot-chart-focus', [['player', 'Selected player'], ['team', 'Whole team']]);
+  const chartInput = select('Chart focus', 'shot-chart-focus', [['player', 'Player'], ['team', 'Team']]);
   const layout = node('div', '', app, 'shot-layout');
   const chart = node('section', '', layout, 'shot-chart-panel');
   const side = node('div', '', layout, 'shot-sidebar');
@@ -84,18 +84,23 @@ export function mountShots(app) {
   chartHeader.insertBefore(kindPicker, detected);
   const court = node('button', '', chart, 'shot-court'); court.type = 'button'; court.setAttribute('aria-label', 'Choose shot location on half-court'); court.setAttribute('aria-describedby', 'court-help');
   drawCourt(court); const markers = node('span', '', court, 'shot-markers');
-  const help = node('p', 'Click or tap a spot. Keyboard: focus the court, use arrow keys to move, or press Enter to select center. Then choose Made or Missed. Outside the drawn three-point line counts as 3; on or inside it counts as 2, including the corner lines.', chart, 'court-help'); help.id = 'court-help'; const courtInstructions = help.textContent;
+  const help = node('p', 'Tap a location, then choose Made or Missed. Arrow keys move the marker; Enter selects a spot.', chart, 'court-help'); help.id = 'court-help'; const courtInstructions = help.textContent;
+  const courtGuide = node('details', '', chart, 'inline-help'); node('summary', 'Court guide & keyboard controls', courtGuide);
+  node('p', 'Outside the drawn three-point line counts as 3; on or inside it counts as 2, including the corner lines. Focus the court and use arrow keys to move. Hold Shift for larger steps, or press Enter to select the center. Switch teams or players before confirming without losing the marked spot.', courtGuide);
   const legend = node('div', '', chart, 'shot-legend'); node('span', '● Made', legend, 'made-legend'); node('span', '× Missed', legend, 'missed-legend'); node('span', '◎ Selected location', legend, 'pending-legend');
   legend.append(count);
   const summary = node('section', '', side, 'shot-summary'); const summaryTitle = node('h2', '', summary); const summaryStats = node('div', '', summary, 'shooting-metrics');
   node('p', 'Recorded shots only. Point-only scoring has no attempt history and is not converted into shooting percentages.', summary, 'section-help');
-  const capture = node('section', '', side, 'shot-capture'); node('span', 'RECORD AN ATTEMPT', capture, 'eyebrow'); node('h2', 'From spot to score.', capture);
+  const capture = node('section', '', side, 'shot-capture'); node('h2', 'Record shot', capture);
+  const captureWho = node('p', '', capture, 'shot-current-shooter');
   const selection = node('p', '', capture, 'shot-selection');
   const buttons = node('div', '', capture, 'shot-outcomes');
   const made = node('button', 'Made · +2 points', buttons, 'shot-made'), missed = node('button', 'Missed · attempt only', buttons, 'shot-missed'); made.type = missed.type = 'button';
   const clear = node('button', 'Clear location', capture, 'shot-clear'); clear.type = 'button';
-  node('p', 'A make adds player and team points. Use this page instead of the game desk’s point buttons for the same shot. Misses do not change possession or clocks. Free throws require both clocks stopped and leave possession under official control.', capture, 'section-help');
-  const clockControls = createShotClockControls(side, { apply: update, toast: showToast, fail });
+  const scoringHelp = node('details', '', capture, 'inline-help'); node('summary', 'How scoring works', scoringHelp);
+  node('p', 'A make adds player and team points. Record each basket once, using this page or the game desk. Misses do not change possession or clocks. Free throws require both clocks stopped and leave possession under official control.', scoringHelp);
+  const clockControls = createShotClockControls(side, { apply: update, toast: showToast, fail, primaryHost: toolbar.actions });
+  clockControls.element.id = 'clock-tools'; clockControls.element.tabIndex = -1;
   const archiveNote = node('p', 'Saved final box score · This shot chart is read-only. Use Current game to capture new attempts.', side, 'shot-archive-note'); archiveNote.hidden = true;
   side.append(capture, otherStats, clockControls.element, summary, archiveNote);
   const history = node('section', '', app, 'shot-history');
@@ -156,12 +161,13 @@ export function mountShots(app) {
   };
   function render() {
     const state = display(), archived = source !== 'current';
+    toolbar.render(state, archived);
     clockControls.render(state, archived);
     capture.hidden = kindPicker.hidden = archived; archiveNote.hidden = !archived;
     fieldButton.setAttribute('aria-pressed', String(value !== 1)); freeButton.setAttribute('aria-pressed', String(value === 1));
     court.disabled = archived || value === 1 || !state;
     summary.hidden = !state;
-    if (!state) { picker.hidden = otherStats.hidden = true; mobileDock.hidden = true; document.body.classList.remove('shot-ready'); scorebar.replaceChildren(); markers.replaceChildren(); history.replaceChildren(); markerSignature = historySignature = ''; summaryStats.replaceChildren(); made.disabled = missed.disabled = true; fail(new Error(source === 'current' ? currentError || 'Game data is unavailable. Use the game desk to recover it.' : 'This match no longer has a saved box score. Choose another source.')); return; }
+    if (!state) { picker.hidden = otherStats.hidden = true; mobileDock.hidden = true; document.body.classList.remove('shot-ready'); markers.replaceChildren(); history.replaceChildren(); markerSignature = historySignature = ''; summaryStats.replaceChildren(); made.disabled = missed.disabled = true; fail(new Error(source === 'current' ? currentError || 'Game data is unavailable. Use the game desk to recover it.' : 'This match no longer has a saved box score. Choose another source.')); return; }
     picker.hidden = otherStats.hidden = false;
     for (const [k, t] of Object.entries(state.teams)) {
       const item = teamButtons.get(k); item.name.textContent = t.name; item.score.textContent = t.score;
@@ -197,6 +203,8 @@ export function mountShots(app) {
     detected.textContent = archived ? 'RECORDED VALUES' : value === 1 ? 'FREE THROW · 1 PT' : pending ? value + '-POINT SHOT' : 'AUTO 2 / 3';
     detected.dataset.value = !archived && (pending || value === 1) ? value : '';
     const player = players.find(p => p.id === playerId), teamChart = chartInput.value === 'team';
+    captureWho.textContent = player ? `#${player.number} ${player.name} · ${state.teams[team].name}` : 'Choose a shooter';
+    captureWho.className = 'shot-current-shooter team-' + team;
     statTitle.textContent = player ? `Other stats · #${player.number} ${player.name}` : 'Other player stats';
     statMeta.textContent = player ? `${player.pts} PTS · ${Math.floor(player.ms / 60000)}:${String(Math.floor(player.ms / 1000) % 60).padStart(2, '0')} MIN · Team fouls ${state.teams[team].fouls}${player.out ? ' · FOULED OUT' : !player.on && !archived ? ' · BENCH' : ''}` : 'Choose a player to see their stats.';
     statActions.hidden = archived; recordedStats.hidden = !archived;
@@ -212,12 +220,6 @@ export function mountShots(app) {
     const total = shootingTotals(shots);
     summaryTitle.textContent = teamChart ? state.teams[team].name : player ? '#' + player.number + ' ' + player.name : 'No player selected'; summaryStats.replaceChildren();
     shootingValues(total).forEach((value, i) => { const item = node('div', '', summaryStats); node('strong', value, item); node('span', ['FGM / FGA', 'FG %', '3PM / 3PA', 'FTM / FTA'][i], item); });
-    scorebar.replaceChildren();
-    for (const k of ['A', 'clock', 'B']) {
-      const item = node('div', '', scorebar, k === 'clock' ? 'shot-clock-status' : 'team-' + k);
-      if (k === 'clock') { node('span', archived ? 'RECORDED FINAL' : `${periodLabel(state)} · ${format(state.game)}`, item); node('strong', state.shotEnabled ? `SHOT ${Math.ceil(state.shot / 1000)}` : 'SHOT OFF', item); node('small', state.break ? state.break.label + ' · BREAK' : state.violation ? 'SHOT CLOCK VIOLATION' : state.running ? 'GAME RUNNING' : state.shotRunning ? 'SHOT RUNNING · GAME STOPPED' : 'CLOCKS STOPPED', item); }
-      else { node('span', state.teams[k].name, item); node('strong', state.teams[k].score, item); }
-    }
     const eligible = !!player?.on && !player.out && !state.break && !state.violation;
     const ready = eligible && (value === 1 ? !state.running && !state.shotRunning : !!pending);
     made.disabled = missed.disabled = !ready; clear.disabled = !pending;
