@@ -29,13 +29,15 @@ test('profile photo and team logo upload, preview, persist and remove on a phone
   await page.getByRole('button',{name:'Save team',exact:true}).click(); await expect(page.getByAltText('Falcons logo',{exact:true})).toBeVisible();
   await page.getByRole('tab',{name:'Players',exact:true}).click(); await page.getByRole('button',{name:'Add player',exact:true}).click();
   await page.getByLabel('Player name',{exact:true}).fill('Jordan Lee'); await page.getByLabel('Jersey number',{exact:true}).fill('23');
-  await page.getByLabel('Position',{exact:true}).fill('Guard'); await page.getByLabel('Height (cm, optional)',{exact:true}).fill('183');
+  await page.getByLabel('Position',{exact:true}).selectOption('Point guard'); await page.getByLabel('Height (optional)',{exact:true}).fill(`6'2"`);
   await page.getByLabel('Hometown',{exact:true}).fill('San Juan'); await page.getByLabel('Biography',{exact:true}).fill('Team captain');
   await page.getByLabel('Player photo',{exact:true}).setInputFiles(image); await expect(page.getByRole('status').filter({hasText:'Image ready'})).toBeVisible();
   await page.getByRole('button',{name:'Save player',exact:true}).click(); await page.reload();
   await expect(page.locator('.directory-player img')).toBeVisible(); await page.getByText('Jordan Lee · Profile',{exact:true}).click();
-  await expect(page.locator('.directory-profile')).toContainText('Guard · 183 cm · San Juan'); await expect(page.locator('.directory-profile')).toContainText('Team captain');
+  await expect(page.locator('.directory-profile')).toContainText(`Point guard · 6'2" (188 cm) · San Juan`); await expect(page.locator('.directory-profile')).toContainText('Team captain');
   await page.getByRole('button',{name:'Edit player',exact:true}).click();
+  await expect(page.getByLabel('Height (optional)',{exact:true})).toHaveValue(`6'2"`);
+  await expect(page.getByLabel('Position',{exact:true})).toHaveValue('Point guard');
   await page.getByLabel('Player photo',{exact:true}).setInputFiles({name:'invalid.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg/>')});
   await page.getByRole('button',{name:'Save player',exact:true}).click(); await expect(page.getByRole('alert')).toContainText('Choose a PNG');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('basketball_tournament_v1')).teams[0].players[0].profile.photo)).toMatch(/^data:image\/webp/);

@@ -52,3 +52,11 @@ test('profile validation rejects active image formats, mismatched data and inval
   const t = initialTournament(); saveTeam(t, null, 'Falcons'); const original = structuredClone(t);
   assert.throws(() => saveTeam(t, t.teams[0].id, 'Renamed', 'invalid')); assert.deepEqual(t, original);
 });
+
+test('height accepts feet and inches or centimeters and formats consistently', async () => {
+  const { parseHeight, formatHeight, heightInFeet } = await import('../src/profiles.js');
+  for (const input of [`6'2"`, '6′2″', '6 ft 2 in', '188 cm', '188']) assert.equal(parseHeight(input), 188);
+  assert.equal(parseHeight(`6'`), 183); assert.equal(parseHeight(`5'11"`), 180); assert.equal(parseHeight(''), null);
+  assert.equal(formatHeight(188), `6'2" (188 cm)`); assert.equal(heightInFeet(null), '');
+  for (const input of [`6'12"`, `6'-2"`, 'six feet', '188.5 cm', '12', '300 cm']) assert.throws(() => parseHeight(input));
+});

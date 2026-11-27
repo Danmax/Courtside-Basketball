@@ -1,3 +1,4 @@
+import { formatHeight } from './profiles.js';
 import { profileImage } from './image-upload.js';
 import { appStorage, appNow } from './app-storage.js';
 import { node, minutes, heading } from './ui.js';
@@ -110,7 +111,7 @@ export function mountPlayerStats(app) {
     const header = node('div', '', feature, 'spotlight-header'); node('span', player.number, header, 'spotlight-jersey');
     profileImage(header, player.profile?.photo, player.name + ' photo', 'profile-portrait');
     const identity = node('div', '', header); node('h2', player.name, identity); node('p', player.teamName, identity);
-    if (player.profile) { node('p', [player.profile.position, player.profile.heightCm ? player.profile.heightCm + ' cm' : '', player.profile.hometown].filter(Boolean).join(' · '), identity, 'muted'); if (player.profile.bio) node('p', player.profile.bio, identity, 'profile-bio'); }
+    if (player.profile) { node('p', [player.profile.position, formatHeight(player.profile.heightCm), player.profile.hometown].filter(Boolean).join(' · '), identity, 'muted'); if (player.profile.bio) node('p', player.profile.bio, identity, 'profile-bio'); }
     node('span', source === 'current' ? player.status.toUpperCase() : player.identityScope === 'match' ? 'GAME-ONLY PLAYER' : 'RECORDED STATS', feature, 'spotlight-status' + (player.out && source === 'current' ? ' foul-warning' : ''));
     const line = node('div', '', feature, 'spotlight-numbers');
     for (const [key, label] of [['pts', 'PTS'], ['reb', 'REB'], ['ast', 'AST'], ['stl', 'STL'], ['blk', 'BLK'], ['fls', 'PF']]) {

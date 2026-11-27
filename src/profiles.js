@@ -21,3 +21,24 @@ export function validateProfile(source) {
   if (height !== null && (!Number.isInteger(height) || height < 40 || height > 280)) throw new Error('Height must be a whole number from 40–280 cm.');
   result.heightCm = height; result.photo = validateImage(source.photo ?? ''); return result;
 }
+
+export const PLAYER_POSITIONS = ['', 'Point guard', 'Shooting guard', 'Small forward', 'Power forward', 'Center', 'Guard', 'Forward', 'Guard / Forward', 'Forward / Center'];
+export function parseHeight(value) {
+  const text = String(value).trim().toLowerCase().replace(/[‘’′]/g, "'").replace(/[“”″]/g, '"');
+  if (!text) return null;
+  let cm;
+  if (/^\d+\s*(cm)?$/.test(text)) cm = Number(text.replace(/\s*cm$/, ''));
+  else {
+    const match = text.match(/^(\d+)\s*(?:'|ft|feet)\s*(?:(\d{1,2})\s*(?:"|in|inches)?)?$/);
+    if (!match || Number(match[2] || 0) > 11) throw new Error('Enter height as 6\'2" or 188 cm. Inches must be 0–11.');
+    cm = Math.round((Number(match[1]) * 12 + Number(match[2] || 0)) * 2.54);
+  }
+  if (!Number.isInteger(cm) || cm < 40 || cm > 280) throw new Error('Height must be between 40 and 280 cm.');
+  return cm;
+}
+export function heightInFeet(cm) {
+  if (cm == null) return '';
+  const inches = Math.round(cm / 2.54);
+  return `${Math.floor(inches / 12)}'${inches % 12}"`;
+}
+export function formatHeight(cm) { return cm == null ? '' : `${heightInFeet(cm)} (${cm} cm)`; }

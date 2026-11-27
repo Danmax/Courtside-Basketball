@@ -1,3 +1,4 @@
+import { PLAYER_POSITIONS, parseHeight, heightInFeet, formatHeight } from './profiles.js';
 import { imageUpload, profileImage } from './image-upload.js';
 import { appStorage, appNow } from './app-storage.js';
 import { node, initials, confirmChange } from './ui.js';
@@ -38,7 +39,7 @@ export function mountTournament(app, { organizer = false } = {}) {
     const wrap = node('label', label, parent), input = node('input', '', wrap); input.type = type; input.value = value; return input;
   }
   function select(parent, label, options, value) {
-    const wrap = node('label', label, parent), input = node('select', '', wrap);
+    const wrap = node('label', label, parent), input = node('select', '', wrap); input.setAttribute('aria-label', label);
     for (const [id, text] of options) { const option = node('option', text, input); option.value = id; }
     if (value != null) input.value = value; return input;
   }
@@ -92,12 +93,16 @@ export function mountTournament(app, { organizer = false } = {}) {
       node('p', team.name + ' · Directory changes apply when loading a new match. A game already on the desk keeps its roster and eligibility.', body);
       const name = field(body, 'Player name', player?.name || ''); name.required = true; name.maxLength = 80;
       const number = field(body, 'Jersey number', player?.number || ''); number.required = true; number.pattern = '[0-9]{1,2}'; number.maxLength = 2;
-      const position = field(body, 'Position', player?.profile?.position || ''); position.maxLength = 40;
-      const height = field(body, 'Height (cm, optional)', player?.profile?.heightCm ?? '', 'number'); height.min = 40; height.max = 280; height.step = 1;
+      const positions = [...PLAYER_POSITIONS];
+      if (player?.profile?.position && !positions.includes(player.profile.position)) positions.push(player.profile.position);
+      const position = select(body, 'Position', positions.map(value => [value, value || 'Select position']), player?.profile?.position || '');
+      const initialHeight = heightInFeet(player?.profile?.heightCm);
+      const height = field(body, 'Height (optional)', initialHeight); height.placeholder = `6'2" or 188 cm`; height.maxLength = 24;
+      node('small', `Use feet and inches, such as 6'2", or centimeters, such as 188 cm.`, body, 'muted');
       const hometown = field(body, 'Hometown', player?.profile?.hometown || ''); hometown.maxLength = 80;
       const bioLabel = node('label', 'Biography', body), bio = node('textarea', '', bioLabel); bio.value = player?.profile?.bio || ''; bio.maxLength = 500;
       const photo = imageUpload(body, 'Player photo', player?.profile?.photo);
-      return () => update(t => savePlayer(t, team.id, player?.id, name.value, number.value, { position: position.value, heightCm: height.value === '' ? null : Number(height.value), hometown: hometown.value, bio: bio.value, photo: photo() }));
+      return () => update(t => savePlayer(t, team.id, player?.id, name.value, number.value, { position: position.value, heightCm: height.value === initialHeight ? player?.profile?.heightCm ?? null : parseHeight(height.value), hometown: hometown.value, bio: bio.value, photo: photo() }));
     }, 'Save player');
   }
   function editMatch(match = null) {
@@ -231,7 +236,7 @@ export function mountTournament(app, { organizer = false } = {}) {
           if (!coaches) {
             const detail = node('details', '', card, 'directory-profile'); node('summary', person.name + ' · Profile', detail);
             profileImage(detail, person.profile?.photo, person.name + ' photo', 'profile-portrait');
-            node('p', [person.profile?.position, person.profile?.heightCm ? person.profile.heightCm + ' cm' : '', person.profile?.hometown].filter(Boolean).join(' · ') || 'Add position, height and hometown using Edit player.', detail, 'muted');
+            node('p', [person.profile?.position, formatHeight(person.profile?.heightCm), person.profile?.hometown].filter(Boolean).join(' · ') || 'Add position, height and hometown using Edit player.', detail, 'muted');
             node('p', person.profile?.bio || 'No biography added yet.', detail);
           }
           action(row, coaches ? 'Edit coach' : 'Edit player', () => coaches ? editCoach(team, person) : editPlayer(team, person));
